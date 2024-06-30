@@ -1,0 +1,9 @@
+APP_PORT: 9990
+BASE_URL_PATH: "/user-service"
+DB_SSL_MODE: "disable"
+DB_USER: root
+DB_HOST: localhost
+DB_PASSWORD: password
+DB_NAME: db_users
+DB_DEBUG: true
+DB_PORT: 5432
