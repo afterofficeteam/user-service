@@ -2,7 +2,6 @@ package products
 
 import (
 	"encoding/json"
-	"log"
 	"net/http"
 	"user-service/src/util/client"
 	"user-service/src/util/helper"
@@ -78,7 +77,6 @@ func (h *Handler) CreateShop(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) CreateProduct(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	usrId := middleware.GetUserID(ctx)
-	log.Println(usrId)
 
 	var bReq products.CreateProductRequest
 	if err := json.NewDecoder(r.Body).Decode(&bReq); err != nil {
