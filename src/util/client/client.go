@@ -161,33 +161,102 @@ func Put(netClient *http.Client, uri string, load interface{}, channel chan Resp
 	}()
 }
 
-func Delete(netClient *http.Client, uri string, load interface{}, channel chan Response) {
+func (ncr *NetClientRequest) Delete(load interface{}, channel chan Response) {
 	go func() {
-		marshalledLoad, err := json.Marshal(load)
+		marshalled, err := json.Marshal(load)
 		if err != nil {
 			channel <- Response{Err: err}
 			return
 		}
 
-		req, err := http.NewRequest(http.MethodDelete, uri, bytes.NewBuffer(marshalledLoad))
+		// Construct URL with query parameters
+		urlObj, err := url.Parse(ncr.RequestUrl)
 		if err != nil {
 			channel <- Response{Err: err}
 			return
 		}
 
+		if len(ncr.QueryParam) > 0 {
+			query := urlObj.Query()
+			for _, param := range ncr.QueryParam {
+				query.Add(param.Param, param.Value)
+			}
+			urlObj.RawQuery = query.Encode()
+		}
+
+		// Create a new POST request
+		req, err := http.NewRequest(http.MethodDelete, urlObj.String(), bytes.NewBuffer(marshalled))
+		if err != nil {
+			channel <- Response{Err: err}
+			return
+		}
 		req.Header.Set("Content-Type", "application/json")
 
-		resp, err := netClient.Do(req)
+		// Perform the request
+		bResp, err := ncr.NetClient.Do(req)
+		if err != nil {
+			channel <- Response{Err: err}
+			return
+		}
+		defer bResp.Body.Close()
+
+		// Read the response body
+		respBody, err := io.ReadAll(bResp.Body)
 		if err != nil {
 			channel <- Response{Err: err}
 			return
 		}
 
-		defer resp.Body.Close()
-		respBody, _ := io.ReadAll(resp.Body)
-		channel <- Response{
-			Res:        respBody,
-			StatusCode: resp.StatusCode,
+		channel <- Response{Res: respBody, StatusCode: bResp.StatusCode}
+	}()
+}
+
+func (ncr *NetClientRequest) Patch(load interface{}, channel chan Response) {
+	go func() {
+		marshalled, err := json.Marshal(load)
+		if err != nil {
+			channel <- Response{Err: err}
+			return
 		}
+
+		// Construct URL with query parameters
+		urlObj, err := url.Parse(ncr.RequestUrl)
+		if err != nil {
+			channel <- Response{Err: err}
+			return
+		}
+
+		if len(ncr.QueryParam) > 0 {
+			query := urlObj.Query()
+			for _, param := range ncr.QueryParam {
+				query.Add(param.Param, param.Value)
+			}
+			urlObj.RawQuery = query.Encode()
+		}
+
+		// Create a new POST request
+		req, err := http.NewRequest(http.MethodPatch, urlObj.String(), bytes.NewBuffer(marshalled))
+		if err != nil {
+			channel <- Response{Err: err}
+			return
+		}
+		req.Header.Set("Content-Type", "application/json")
+
+		// Perform the request
+		bResp, err := ncr.NetClient.Do(req)
+		if err != nil {
+			channel <- Response{Err: err}
+			return
+		}
+		defer bResp.Body.Close()
+
+		// Read the response body
+		respBody, err := io.ReadAll(bResp.Body)
+		if err != nil {
+			channel <- Response{Err: err}
+			return
+		}
+
+		channel <- Response{Res: respBody, StatusCode: bResp.StatusCode}
 	}()
 }

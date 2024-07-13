@@ -2,13 +2,14 @@ package cart
 
 import (
 	"encoding/json"
-	"github.com/google/uuid"
-	"github.com/thedevsaddam/renderer"
 	"net/http"
 	"user-service/src/util/client"
 	"user-service/src/util/helper"
 	"user-service/src/util/middleware"
 	"user-service/src/util/repository/model/cart"
+
+	"github.com/google/uuid"
+	"github.com/thedevsaddam/renderer"
 )
 
 type Handler struct {
@@ -129,10 +130,13 @@ func (h *Handler) DeleteCart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	url := deleteCartUrl + usrId
 	deleteChan := make(chan client.Response)
-	httpClient := client.NetClient
-	go client.Delete(httpClient, url, bReq, deleteChan)
+	netClient := client.NetClientRequest{
+		NetClient:  client.NetClient,
+		RequestUrl: deleteCartUrl + usrId,
+	}
+
+	netClient.Delete(bReq, deleteChan)
 	bResp := <-deleteChan
 	if bResp.Err != nil {
 		helper.HandleResponse(w, h.render, http.StatusBadRequest, bResp.Err.Error(), nil)
