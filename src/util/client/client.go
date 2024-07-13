@@ -35,49 +35,51 @@ func (ncr *NetClientRequest) AddQueryParam(param, value string) {
 }
 
 func (ncr *NetClientRequest) Get(load interface{}, channel chan Response) {
-	marshalled, err := json.Marshal(load)
-	if err != nil {
-		channel <- Response{Err: err}
-		return
-	}
-
-	// Construct URL with query parameters
-	urlObj, err := url.Parse(ncr.RequestUrl)
-	if err != nil {
-		channel <- Response{Err: err}
-		return
-	}
-
-	if len(ncr.QueryParam) > 0 {
-		query := urlObj.Query()
-		for _, param := range ncr.QueryParam {
-			query.Add(param.Param, param.Value)
+	go func() {
+		marshalled, err := json.Marshal(load)
+		if err != nil {
+			channel <- Response{Err: err}
+			return
 		}
-		urlObj.RawQuery = query.Encode()
-	}
 
-	req, err := http.NewRequest(http.MethodGet, urlObj.String(), bytes.NewBuffer(marshalled))
-	if err != nil {
-		channel <- Response{Err: err}
-		return
-	}
-	req.Header.Set("Content-Type", "application/json")
+		// Construct URL with query parameters
+		urlObj, err := url.Parse(ncr.RequestUrl)
+		if err != nil {
+			channel <- Response{Err: err}
+			return
+		}
 
-	// Perform the request
-	bResp, err := ncr.NetClient.Do(req)
-	if err != nil {
-		channel <- Response{Err: err}
-		return
-	}
-	defer bResp.Body.Close()
+		if len(ncr.QueryParam) > 0 {
+			query := urlObj.Query()
+			for _, param := range ncr.QueryParam {
+				query.Add(param.Param, param.Value)
+			}
+			urlObj.RawQuery = query.Encode()
+		}
 
-	resBody, err := io.ReadAll(bResp.Body)
-	if err != nil {
-		channel <- Response{Err: err}
-		return
-	}
+		req, err := http.NewRequest(http.MethodGet, urlObj.String(), bytes.NewBuffer(marshalled))
+		if err != nil {
+			channel <- Response{Err: err}
+			return
+		}
+		req.Header.Set("Content-Type", "application/json")
 
-	channel <- Response{Res: resBody, StatusCode: bResp.StatusCode}
+		// Perform the request
+		bResp, err := ncr.NetClient.Do(req)
+		if err != nil {
+			channel <- Response{Err: err}
+			return
+		}
+		defer bResp.Body.Close()
+
+		resBody, err := io.ReadAll(bResp.Body)
+		if err != nil {
+			channel <- Response{Err: err}
+			return
+		}
+
+		channel <- Response{Res: resBody, StatusCode: bResp.StatusCode}
+	}()
 }
 
 func (ncr *NetClientRequest) Post(load interface{}, channel chan Response) {

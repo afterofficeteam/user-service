@@ -2,6 +2,7 @@ package products
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"user-service/src/util/client"
 	"user-service/src/util/helper"
@@ -10,6 +11,10 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/thedevsaddam/renderer"
+)
+
+var (
+	responseError map[string]any
 )
 
 type Handler struct {
@@ -42,24 +47,28 @@ func (h *Handler) CreateShop(w http.ResponseWriter, r *http.Request) {
 	netClient.Post(bReq, shopChannel)
 	bResp := <-shopChannel
 	if bResp.Err != nil {
-		var responseError products.ResponseError
 		if err := json.Unmarshal(bResp.Res, &responseError); err != nil {
-			helper.HandleResponse(w, h.render, http.StatusInternalServerError, err.Error(), nil)
+			helper.HandleResponse(w, h.render, bResp.StatusCode, err.Error(), nil)
+			return
 		}
+
+		helper.HandleResponse(w, h.render, bResp.StatusCode, responseError, nil)
 		return
 	}
 
 	if bResp.StatusCode != http.StatusCreated {
-		var responseError products.ResponseError
 		if err := json.Unmarshal(bResp.Res, &responseError); err != nil {
-			helper.HandleResponse(w, h.render, http.StatusInternalServerError, err.Error(), nil)
+			helper.HandleResponse(w, h.render, bResp.StatusCode, bResp.Err, nil)
+			return
 		}
+
+		helper.HandleResponse(w, h.render, bResp.StatusCode, responseError, nil)
 		return
 	}
 
 	var resp products.Response
 	if err := json.Unmarshal(bResp.Res, &resp); err != nil {
-		helper.HandleResponse(w, h.render, http.StatusInternalServerError, err.Error(), nil)
+		helper.HandleResponse(w, h.render, bResp.StatusCode, err.Error(), nil)
 		return
 	}
 
@@ -69,6 +78,7 @@ func (h *Handler) CreateShop(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) CreateProduct(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	usrId := middleware.GetUserID(ctx)
+	log.Println(usrId)
 
 	var bReq products.CreateProductRequest
 	if err := json.NewDecoder(r.Body).Decode(&bReq); err != nil {
@@ -88,12 +98,22 @@ func (h *Handler) CreateProduct(w http.ResponseWriter, r *http.Request) {
 	netClient.Post(bReq, productChannel)
 	bResp := <-productChannel
 	if bResp.Err != nil {
-		helper.HandleResponse(w, h.render, http.StatusBadRequest, bResp.Err.Error(), nil)
+		if err := json.Unmarshal(bResp.Res, &responseError); err != nil {
+			helper.HandleResponse(w, h.render, bResp.StatusCode, bResp.Err, nil)
+			return
+		}
+
+		helper.HandleResponse(w, h.render, bResp.StatusCode, responseError, nil)
 		return
 	}
 
 	if bResp.StatusCode != http.StatusCreated {
-		helper.HandleResponse(w, h.render, bResp.StatusCode, bResp.Res, nil)
+		if err := json.Unmarshal(bResp.Res, &responseError); err != nil {
+			helper.HandleResponse(w, h.render, bResp.StatusCode, bResp.Err, nil)
+			return
+		}
+
+		helper.HandleResponse(w, h.render, bResp.StatusCode, responseError, nil)
 		return
 	}
 
@@ -107,7 +127,26 @@ func (h *Handler) CreateProduct(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) GetProducts(w http.ResponseWriter, r *http.Request) {
-	var request products.GetProductsRequest
+	param := r.URL.Query()
+	shopId := param.Get("shop_id")
+	categoryId := param.Get("category_id")
+	name := param.Get("name")
+	priceMinStr := param.Get("price_min")
+	priceMaxStr := param.Get("price_max")
+	isAvailable := param.Get("is_available")
+	page := param.Get("page")
+	limit := param.Get("limit")
+
+	request := products.GetProductsRequest{
+		ShopId:      shopId,
+		CategoryId:  categoryId,
+		Name:        name,
+		PriceMinStr: priceMinStr,
+		PriceMaxStr: priceMaxStr,
+		IsAvailable: isAvailable,
+		Page:        page,
+		Limit:       limit,
+	}
 	shopChannel := make(chan client.Response)
 	netClient := client.NetClientRequest{
 		NetClient:  client.NetClient,
@@ -119,18 +158,30 @@ func (h *Handler) GetProducts(w http.ResponseWriter, r *http.Request) {
 			{Param: "price_min", Value: request.PriceMinStr},
 			{Param: "price_max", Value: request.PriceMaxStr},
 			{Param: "is_available", Value: request.IsAvailable},
+			{Param: "page", Value: request.Page},
+			{Param: "limit", Value: request.Limit},
 		},
 	}
 
 	netClient.Get(nil, shopChannel)
 	bResp := <-shopChannel
 	if bResp.Err != nil {
-		helper.HandleResponse(w, h.render, http.StatusBadRequest, bResp.Err.Error(), nil)
+		if err := json.Unmarshal(bResp.Res, &responseError); err != nil {
+			helper.HandleResponse(w, h.render, bResp.StatusCode, bResp.Err, nil)
+			return
+		}
+
+		helper.HandleResponse(w, h.render, bResp.StatusCode, responseError, nil)
 		return
 	}
 
 	if bResp.StatusCode != http.StatusOK {
-		helper.HandleResponse(w, h.render, bResp.StatusCode, bResp.Res, nil)
+		if err := json.Unmarshal(bResp.Res, &responseError); err != nil {
+			helper.HandleResponse(w, h.render, bResp.StatusCode, bResp.Err, nil)
+			return
+		}
+
+		helper.HandleResponse(w, h.render, bResp.StatusCode, responseError, nil)
 		return
 	}
 
@@ -168,12 +219,22 @@ func (h *Handler) UpdateProduct(w http.ResponseWriter, r *http.Request) {
 	netClient.Patch(bReq, productChannel)
 	bResp := <-productChannel
 	if bResp.Err != nil {
-		helper.HandleResponse(w, h.render, http.StatusBadRequest, bResp.Err.Error(), nil)
+		if err := json.Unmarshal(bResp.Res, &responseError); err != nil {
+			helper.HandleResponse(w, h.render, bResp.StatusCode, bResp.Err, nil)
+			return
+		}
+
+		helper.HandleResponse(w, h.render, bResp.StatusCode, responseError, nil)
 		return
 	}
 
 	if bResp.StatusCode != http.StatusOK {
-		helper.HandleResponse(w, h.render, bResp.StatusCode, bResp.Res, nil)
+		if err := json.Unmarshal(bResp.Res, &responseError); err != nil {
+			helper.HandleResponse(w, h.render, bResp.StatusCode, bResp.Err, nil)
+			return
+		}
+
+		helper.HandleResponse(w, h.render, bResp.StatusCode, responseError, nil)
 		return
 	}
 

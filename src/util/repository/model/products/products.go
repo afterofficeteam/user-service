@@ -40,6 +40,12 @@ type UpdateProductRequest struct {
 }
 
 type UpsertProductResponse struct {
+	Data    dataResponseCreateProduct `json:"data"`
+	Message string                    `json:"message"`
+	Success bool                      `json:"success"`
+}
+
+type dataResponseCreateProduct struct {
 	Id          string    `json:"id" db:"id"`
 	UserId      string    `json:"user_id" db:"user_id"`
 	ShopId      string    `json:"shop_id" db:"shop_id"`
@@ -68,7 +74,15 @@ type DeleteProductRequest struct {
 }
 
 type ResponseError struct {
-	Errors  []map[string]interface{} `json:"errors"`
-	Message string                   `json:"message"`
-	Success bool                     `json:"success"`
+	Errors  map[string]interface{} `json:"errors"`
+	Message string                 `json:"message"`
+	Success bool                   `json:"success"`
+}
+
+type UpsertShopResponse struct {
+	Id        string `json:"id" db:"id"`
+	UserId    string `json:"user_id" db:"user_id"`
+	Name      string `json:"name" db:"name"`
+	CreatedAt string `json:"created_at" db:"created_at"`
+	UpdatedAt string `json:"updated_at" db:"updated_at"`
 }
