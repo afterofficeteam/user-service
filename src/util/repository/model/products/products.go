@@ -14,12 +14,6 @@ type Response struct {
 	Data Data `json:"data"`
 }
 
-type ResponseError struct {
-	Errors  map[string]any `json:"errors"`
-	Message string         `json:"message"`
-	Success bool           `json:"success"`
-}
-
 type RequesstCreate struct {
 	Name string `json:"name"`
 }
@@ -71,4 +65,10 @@ type CreateProductRequest struct {
 type DeleteProductRequest struct {
 	ProductId string `params:"product_id" validate:"required,uuid"`
 	UserId    string `query:"user_id" validate:"required,uuid"`
+}
+
+type ResponseError struct {
+	Errors  []map[string]interface{} `json:"errors"`
+	Message string                   `json:"message"`
+	Success bool                     `json:"success"`
 }

@@ -148,7 +148,7 @@ func (r *Routes) SetupUser() {
 func (r *Routes) SetupProduct() {
 	shopRoutes := r.Router.PathPrefix("/shops").Subrouter()
 	shopRoutes.Use(middleware.Authentication)
-	shopRoutes.HandleFunc("/create", r.Product.CreateShop).Subrouter()
+	shopRoutes.HandleFunc("/create", r.Product.CreateShop).Methods(http.MethodPost, http.MethodOptions)
 
 	productRoutes := r.Router.PathPrefix("/products").Subrouter()
 	productRoutes.Use(middleware.Authentication)

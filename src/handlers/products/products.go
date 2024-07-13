@@ -42,12 +42,18 @@ func (h *Handler) CreateShop(w http.ResponseWriter, r *http.Request) {
 	netClient.Post(bReq, shopChannel)
 	bResp := <-shopChannel
 	if bResp.Err != nil {
-		helper.HandleResponse(w, h.render, http.StatusBadRequest, bResp.Err.Error(), nil)
+		var responseError products.ResponseError
+		if err := json.Unmarshal(bResp.Res, &responseError); err != nil {
+			helper.HandleResponse(w, h.render, http.StatusInternalServerError, err.Error(), nil)
+		}
 		return
 	}
 
 	if bResp.StatusCode != http.StatusCreated {
-		helper.HandleResponse(w, h.render, bResp.StatusCode, bResp.Res, nil)
+		var responseError products.ResponseError
+		if err := json.Unmarshal(bResp.Res, &responseError); err != nil {
+			helper.HandleResponse(w, h.render, http.StatusInternalServerError, err.Error(), nil)
+		}
 		return
 	}
 
