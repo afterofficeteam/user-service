@@ -12,21 +12,23 @@ import (
 	"github.com/thedevsaddam/renderer"
 )
 
-var (
-	responseError map[string]any
-)
-
 type Handler struct {
-	render *renderer.Render
+	render  *renderer.Render
+	baseURL string
 }
 
 func NewHandler(r *renderer.Render) *Handler {
-	return &Handler{render: r}
+	return &Handler{
+		render:  r,
+		baseURL: "http://localhost:3000/api",
+	}
 }
 
+// PRODUCTS SECTION
 func (h *Handler) CreateProduct(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	usrId := middleware.GetUserID(ctx)
+	response := make(map[string]any)
 
 	var bReq products.CreateProductRequest
 	if err := json.NewDecoder(r.Body).Decode(&bReq); err != nil {
@@ -37,7 +39,7 @@ func (h *Handler) CreateProduct(w http.ResponseWriter, r *http.Request) {
 	productChannel := make(chan client.Response)
 	netClient := client.NetClientRequest{
 		NetClient:  client.NetClient,
-		RequestUrl: "http://localhost:3000/api/products",
+		RequestUrl: h.baseURL + "/products",
 		QueryParam: []client.QueryParams{
 			{Param: "user_id", Value: usrId},
 		},
@@ -46,32 +48,31 @@ func (h *Handler) CreateProduct(w http.ResponseWriter, r *http.Request) {
 	netClient.Post(bReq, productChannel)
 	bResp := <-productChannel
 	if bResp.Err != nil {
-		if err := json.Unmarshal(bResp.Res, &responseError); err != nil {
+		if err := json.Unmarshal(bResp.Res, &response); err != nil {
 			helper.HandleResponse(w, h.render, bResp.StatusCode, bResp.Err, nil)
 			return
 		}
 
-		helper.HandleResponse(w, h.render, bResp.StatusCode, responseError, nil)
+		helper.HandleResponse(w, h.render, bResp.StatusCode, response, nil)
 		return
 	}
 
 	if bResp.StatusCode != http.StatusCreated {
-		if err := json.Unmarshal(bResp.Res, &responseError); err != nil {
+		if err := json.Unmarshal(bResp.Res, &response); err != nil {
 			helper.HandleResponse(w, h.render, bResp.StatusCode, bResp.Err, nil)
 			return
 		}
 
-		helper.HandleResponse(w, h.render, bResp.StatusCode, responseError, nil)
+		helper.HandleResponse(w, h.render, bResp.StatusCode, response, nil)
 		return
 	}
 
-	var response products.UpsertProductResponse
 	if err := json.Unmarshal(bResp.Res, &response); err != nil {
 		helper.HandleResponse(w, h.render, http.StatusInternalServerError, err.Error(), nil)
 		return
 	}
 
-	helper.HandleResponse(w, h.render, bResp.StatusCode, "Product created successfully", response)
+	helper.HandleResponse(w, h.render, bResp.StatusCode, "Product created successfully", response["data"])
 }
 
 func (h *Handler) GetProducts(w http.ResponseWriter, r *http.Request) {
@@ -86,11 +87,12 @@ func (h *Handler) GetProducts(w http.ResponseWriter, r *http.Request) {
 		Page:        param.Get("page"),
 		Limit:       param.Get("limit"),
 	}
+	response := make(map[string]any)
 
 	shopChannel := make(chan client.Response)
 	netClient := client.NetClientRequest{
 		NetClient:  client.NetClient,
-		RequestUrl: "http://localhost:3000/api/products",
+		RequestUrl: h.baseURL + "/products",
 		QueryParam: []client.QueryParams{
 			{Param: "shop_id", Value: request.ShopId},
 			{Param: "category_id", Value: request.CategoryId},
@@ -106,32 +108,31 @@ func (h *Handler) GetProducts(w http.ResponseWriter, r *http.Request) {
 	netClient.Get(nil, shopChannel)
 	bResp := <-shopChannel
 	if bResp.Err != nil {
-		if err := json.Unmarshal(bResp.Res, &responseError); err != nil {
+		if err := json.Unmarshal(bResp.Res, &response); err != nil {
 			helper.HandleResponse(w, h.render, bResp.StatusCode, bResp.Err, nil)
 			return
 		}
 
-		helper.HandleResponse(w, h.render, bResp.StatusCode, responseError, nil)
+		helper.HandleResponse(w, h.render, bResp.StatusCode, response, nil)
 		return
 	}
 
 	if bResp.StatusCode != http.StatusOK {
-		if err := json.Unmarshal(bResp.Res, &responseError); err != nil {
+		if err := json.Unmarshal(bResp.Res, &response); err != nil {
 			helper.HandleResponse(w, h.render, bResp.StatusCode, bResp.Err, nil)
 			return
 		}
 
-		helper.HandleResponse(w, h.render, bResp.StatusCode, responseError, nil)
+		helper.HandleResponse(w, h.render, bResp.StatusCode, response["message"], nil)
 		return
 	}
 
-	var response map[string]interface{}
 	if err := json.Unmarshal(bResp.Res, &response); err != nil {
 		helper.HandleResponse(w, h.render, http.StatusInternalServerError, err.Error(), nil)
 		return
 	}
 
-	helper.HandleResponse(w, h.render, bResp.StatusCode, "Success", response)
+	helper.HandleResponse(w, h.render, bResp.StatusCode, "Success", response["data"])
 }
 
 func (h *Handler) UpdateProduct(w http.ResponseWriter, r *http.Request) {
@@ -146,11 +147,12 @@ func (h *Handler) UpdateProduct(w http.ResponseWriter, r *http.Request) {
 		helper.HandleResponse(w, h.render, http.StatusBadRequest, "Invalid request payload", nil)
 		return
 	}
+	response := make(map[string]any)
 
 	productChannel := make(chan client.Response)
 	netClient := client.NetClientRequest{
 		NetClient:  client.NetClient,
-		RequestUrl: "http://localhost:3000/api/products/" + productId,
+		RequestUrl: h.baseURL + "/products/" + productId,
 		QueryParam: []client.QueryParams{
 			{Param: "user_id", Value: usrId},
 		},
@@ -159,32 +161,31 @@ func (h *Handler) UpdateProduct(w http.ResponseWriter, r *http.Request) {
 	netClient.Patch(bReq, productChannel)
 	bResp := <-productChannel
 	if bResp.Err != nil {
-		if err := json.Unmarshal(bResp.Res, &responseError); err != nil {
+		if err := json.Unmarshal(bResp.Res, &response); err != nil {
 			helper.HandleResponse(w, h.render, bResp.StatusCode, bResp.Err, nil)
 			return
 		}
 
-		helper.HandleResponse(w, h.render, bResp.StatusCode, responseError, nil)
+		helper.HandleResponse(w, h.render, bResp.StatusCode, response, nil)
 		return
 	}
 
 	if bResp.StatusCode != http.StatusOK {
-		if err := json.Unmarshal(bResp.Res, &responseError); err != nil {
+		if err := json.Unmarshal(bResp.Res, &response); err != nil {
 			helper.HandleResponse(w, h.render, bResp.StatusCode, bResp.Err, nil)
 			return
 		}
 
-		helper.HandleResponse(w, h.render, bResp.StatusCode, responseError, nil)
+		helper.HandleResponse(w, h.render, bResp.StatusCode, response["message"], nil)
 		return
 	}
 
-	var response products.UpsertProductResponse
 	if err := json.Unmarshal(bResp.Res, &response); err != nil {
 		helper.HandleResponse(w, h.render, http.StatusInternalServerError, err.Error(), nil)
 		return
 	}
 
-	helper.HandleResponse(w, h.render, bResp.StatusCode, "Product updated successfully", response)
+	helper.HandleResponse(w, h.render, bResp.StatusCode, "Product updated successfully", response["data"])
 }
 
 func (h *Handler) DeleteProduct(w http.ResponseWriter, r *http.Request) {
@@ -197,7 +198,7 @@ func (h *Handler) DeleteProduct(w http.ResponseWriter, r *http.Request) {
 	productChannel := make(chan client.Response)
 	netClient := client.NetClientRequest{
 		NetClient:  client.NetClient,
-		RequestUrl: "http://localhost:3000/api/products/" + productId,
+		RequestUrl: h.baseURL + "/products/" + productId,
 		QueryParam: []client.QueryParams{
 			{Param: "user_id", Value: usrId},
 		},

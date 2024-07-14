@@ -84,17 +84,23 @@ func (r *Routes) SetupUser() {
 
 func (r *Routes) SetupProduct() {
 	productRoutes := r.Router.PathPrefix("/products").Subrouter()
-	productRoutes.Use(middleware.Authentication)
 	productRoutes.HandleFunc("", r.Product.GetProducts).Methods(http.MethodGet, http.MethodOptions)
-	productRoutes.HandleFunc("/{product_id}", r.Product.UpdateProduct).Methods(http.MethodPut, http.MethodOptions)
-	productRoutes.HandleFunc("/create", r.Product.CreateProduct).Methods(http.MethodPost, http.MethodOptions)
-	productRoutes.HandleFunc("/{product_id}/delete", r.Product.DeleteProduct).Methods(http.MethodDelete, http.MethodOptions)
+
+	authenticatedProductRoutes := productRoutes.PathPrefix("").Subrouter()
+	authenticatedProductRoutes.Use(middleware.Authentication)
+	authenticatedProductRoutes.HandleFunc("", r.Product.GetProducts).Methods(http.MethodGet, http.MethodOptions)
+	authenticatedProductRoutes.HandleFunc("/{product_id}", r.Product.UpdateProduct).Methods(http.MethodPut, http.MethodOptions)
+	authenticatedProductRoutes.HandleFunc("/create", r.Product.CreateProduct).Methods(http.MethodPost, http.MethodOptions)
+	authenticatedProductRoutes.HandleFunc("/{product_id}/delete", r.Product.DeleteProduct).Methods(http.MethodDelete, http.MethodOptions)
 }
 
 func (r *Routes) SetupShop() {
 	shopRoutes := r.Router.PathPrefix("/shops").Subrouter()
-	shopRoutes.Use(middleware.Authentication)
-	shopRoutes.HandleFunc("/create", r.Shop.CreateShop).Methods(http.MethodPost, http.MethodOptions)
+	shopRoutes.HandleFunc("", r.Shop.GetShops).Methods(http.MethodGet, http.MethodOptions)
+
+	authenticatedShopRoutes := shopRoutes.PathPrefix("").Subrouter()
+	authenticatedShopRoutes.Use(middleware.Authentication)
+	authenticatedShopRoutes.HandleFunc("/create", r.Shop.CreateShop).Methods(http.MethodPost, http.MethodOptions)
 }
 
 func (r *Routes) SetupCart() {
