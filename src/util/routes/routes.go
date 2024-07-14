@@ -171,6 +171,4 @@ func (r *Routes) setupOrder() {
 	orderRoutes := r.Router.PathPrefix("/order").Subrouter()
 	orderRoutes.Use(middleware.Authentication)
 	orderRoutes.HandleFunc("/create", r.Order.CreateOrder).Methods(http.MethodPost, http.MethodOptions)
-	orderRoutes.HandleFunc("/create/items", r.Order.CreateOrderItems).Methods(http.MethodPost, http.MethodOptions)
-	orderRoutes.HandleFunc("/create/items/logs", r.Order.CreateOrderItemlogs).Methods(http.MethodPost, http.MethodOptions)
 }

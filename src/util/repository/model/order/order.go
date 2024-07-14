@@ -1,37 +1,29 @@
 package order
 
 import (
-	"github.com/google/uuid"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type Order struct {
-	UserID        uuid.UUID  `json:"user_id"`
-	PaymentTypeID uuid.UUID  `json:"payment_type_id"`
-	OrderNumber   string     `json:"order_number"`
-	TotalPrice    float64    `json:"total_price"`
-	Status        string     `json:"status"`
-	IsPaid        bool       `json:"is_paid"`
-	DiscountID    uuid.UUID  `json:"discount_id"`
-	CreatedAt     *time.Time `json:"created_at"`
-	UpdatedAt     *time.Time `json:"updated_at"`
-	DeleredAt     *time.Time `json:"deleted_at"`
-}
-
-type OrderItems struct {
-	OrderID       uuid.UUID  `json:"order_id"`
-	ProductID     uuid.UUID  `json:"product_id"`
-	Qty           int        `json:"qty"`
-	Price         float64    `json:"price"`
-	ProductName   string     `json:"product_name"`
-	SubtotalPrice float64    `json:"subtotal_price"`
-	CreatedAt     *time.Time `json:"created_at"`
-	UpdatedAt     *time.Time `json:"updated_at"`
-	DeletedAt     *time.Time `json:"deleted_at"`
+	UserID        uuid.UUID   `json:"user_id" validate:"required"`
+	PaymentTypeID uuid.UUID   `json:"payment_type_id" validate:"required"`
+	OrderNumber   string      `json:"order_number" validate:"required"`
+	SubtotalPrice float64     `json:"subtotal_price" validate:"required"`
+	TotalPrice    float64     `json:"total_price" validate:"required"`
+	ProductOrder  interface{} `json:"product_order"`
+	Status        string      `json:"status" validate:"required"`
+	IsPaid        bool        `json:"is_paid"`
+	RefCode       string      `json:"ref_code"`
+	CreatedAt     *time.Time  `json:"created_at"`
+	UpdatedAt     *time.Time  `json:"updated_at"`
+	DeleredAt     *time.Time  `json:"deleted_at"`
 }
 
 type OrderItemsLogs struct {
 	OrderID    uuid.UUID  `json:"order_id"`
+	RefCode    string     `json:"ref_code"`
 	FromStatus string     `json:"from_status"`
 	ToStatus   string     `json:"to_status"`
 	Notes      string     `json:"notes"`
