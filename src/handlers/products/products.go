@@ -126,25 +126,17 @@ func (h *Handler) CreateProduct(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) GetProducts(w http.ResponseWriter, r *http.Request) {
 	param := r.URL.Query()
-	shopId := param.Get("shop_id")
-	categoryId := param.Get("category_id")
-	name := param.Get("name")
-	priceMinStr := param.Get("price_min")
-	priceMaxStr := param.Get("price_max")
-	isAvailable := param.Get("is_available")
-	page := param.Get("page")
-	limit := param.Get("limit")
-
 	request := products.GetProductsRequest{
-		ShopId:      shopId,
-		CategoryId:  categoryId,
-		Name:        name,
-		PriceMinStr: priceMinStr,
-		PriceMaxStr: priceMaxStr,
-		IsAvailable: isAvailable,
-		Page:        page,
-		Limit:       limit,
+		ShopId:      param.Get("shop_id"),
+		CategoryId:  param.Get("category_id"),
+		Name:        param.Get("name"),
+		PriceMinStr: param.Get("price_min"),
+		PriceMaxStr: param.Get("price_max"),
+		IsAvailable: param.Get("is_available"),
+		Page:        param.Get("page"),
+		Limit:       param.Get("limit"),
 	}
+
 	shopChannel := make(chan client.Response)
 	netClient := client.NetClientRequest{
 		NetClient:  client.NetClient,
