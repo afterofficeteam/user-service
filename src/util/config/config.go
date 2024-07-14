@@ -2,8 +2,9 @@ package config
 
 import (
 	"fmt"
-	"github.com/spf13/viper"
 	"time"
+
+	"github.com/spf13/viper"
 )
 
 type Config struct {
@@ -18,6 +19,9 @@ type Config struct {
 	DBDebug      bool
 	BaseURLPath  string
 	DBSSLMode    string
+	ClientKey    string
+	ServerKey    string
+	MerchantID   string
 }
 
 func LoadConfig() (*Config, error) {
@@ -42,6 +46,9 @@ func LoadConfig() (*Config, error) {
 		DBName:      viper.GetString("DB_NAME"),
 		DBDebug:     viper.GetBool("DB_DEBUG"),
 		DBPort:      viper.GetInt("DB_PORT"),
+		ClientKey:   viper.GetString("CLIENT_KEY"),
+		ServerKey:   viper.GetString("SERVER_KEY"),
+		MerchantID:  viper.GetString("MERCHANT_ID"),
 	}
 
 	return config, nil

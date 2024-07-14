@@ -42,11 +42,11 @@ func main() {
 
 	validator := validator.New()
 	render := renderer.New()
-	routes := setupRoutes(render, sqlDb, validator)
+	routes := setupRoutes(render, sqlDb, validator, cfg)
 	routes.Run(cfg.AppPort)
 }
 
-func setupRoutes(render *renderer.Render, myDb *sql.DB, validator *validator.Validate) *routes.Routes {
+func setupRoutes(render *renderer.Render, myDb *sql.DB, validator *validator.Validate, config *config.Config) *routes.Routes {
 	userStore := userStore.NewStore(myDb)
 	userUsecase := userUsecase.NewUserUsecase(userStore)
 	userHandler := userHandler.NewUserHandler(userUsecase, render)
@@ -60,7 +60,7 @@ func setupRoutes(render *renderer.Render, myDb *sql.DB, validator *validator.Val
 
 	cartHandler := cart.NewHandler(render)
 
-	orderHandler := order.NewHandler(render, validator)
+	orderHandler := order.NewHandler(render, validator, config.ClientKey, config.ServerKey)
 
 	return &routes.Routes{
 		Integration: integrationHandler,

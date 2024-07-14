@@ -1,6 +1,7 @@
 package order
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -22,14 +23,19 @@ var (
 type Handler struct {
 	render    *renderer.Render
 	validator *validator.Validate
+	clientKey string
+	serverKey string
 }
 
 const (
-	createOrderUrl = "http://localhost:9993/order/create"
+	createOrderUrl   = "http://localhost:9993/order/create"
+	getproductUrl    = "http://localhost:3000/api/products"
+	updateProductUrl = "http://localhost:3000/api/product-stocks"
+	paymentUrl       = "http://localhost:4000/api/payments"
 )
 
-func NewHandler(r *renderer.Render, validator *validator.Validate) *Handler {
-	return &Handler{render: r, validator: validator}
+func NewHandler(r *renderer.Render, validator *validator.Validate, clientKey, serverKey string) *Handler {
+	return &Handler{render: r, validator: validator, clientKey: clientKey, serverKey: serverKey}
 }
 
 func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
@@ -60,7 +66,7 @@ func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	productChannel := make(chan client.Response)
 	netClientProducts := client.NetClientRequest{
 		NetClient:  client.NetClient,
-		RequestUrl: "http://localhost:3000/api/products",
+		RequestUrl: getproductUrl,
 		QueryParam: []client.QueryParams{
 			{Param: "product_ids", Value: productId},
 			{Param: "limit", Value: request.Limit},
@@ -76,6 +82,7 @@ func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		}
 
 		helper.HandleResponse(w, h.render, respProduct.StatusCode, responseError["message"], nil)
+		return
 	}
 
 	if respProduct.StatusCode != http.StatusOK {
@@ -85,6 +92,7 @@ func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		}
 
 		helper.HandleResponse(w, h.render, respProduct.StatusCode, responseError["message"], nil)
+		return
 	}
 
 	var productData products.DataProduct
@@ -138,8 +146,8 @@ func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	var orderResponse string
-	if err := json.Unmarshal(responseOrder.Res, &orderResponse); err != nil {
+	var orderID string
+	if err := json.Unmarshal(responseOrder.Res, &orderID); err != nil {
 		helper.HandleResponse(w, h.render, http.StatusInternalServerError, err.Error(), nil)
 		return
 	}
@@ -159,28 +167,72 @@ func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	// Mengupdate stok di layanan Product
 	netclientUpdateStock := client.NetClientRequest{
 		NetClient:  client.NetClient,
-		RequestUrl: "http://localhost:3000/api/product-stocks",
+		RequestUrl: updateProductUrl,
 	}
 	updateStockChan := make(chan client.Response)
 	go netclientUpdateStock.Patch(bReq.UpdateQty, updateStockChan)
 	responseUpdateStock := <-updateStockChan
+
+	var responseUpdate string
 	if responseUpdateStock.Err != nil {
-		if err := json.Unmarshal(respProduct.Res, &responseError); err != nil {
+		if err := json.Unmarshal(respProduct.Res, &responseUpdate); err != nil {
 			helper.HandleResponse(w, h.render, http.StatusConflict, "Error unmarshall", nil)
 			return
 		}
 
-		helper.HandleResponse(w, h.render, respProduct.StatusCode, responseError["message"], nil)
+		helper.HandleResponse(w, h.render, respProduct.StatusCode, responseUpdate, nil)
+		return
 	}
 
 	if responseUpdateStock.StatusCode != http.StatusOK {
-		if err := json.Unmarshal(respProduct.Res, &responseError); err != nil {
+		if err := json.Unmarshal(respProduct.Res, &responseUpdate); err != nil {
 			helper.HandleResponse(w, h.render, http.StatusConflict, "Error unmarshall", nil)
 			return
 		}
 
-		helper.HandleResponse(w, h.render, respProduct.StatusCode, responseError["message"], nil)
+		helper.HandleResponse(w, h.render, respProduct.StatusCode, responseUpdate, nil)
+		return
 	}
 
-	helper.HandleResponse(w, h.render, http.StatusOK, helper.SUCCESS_MESSSAGE, nil)
+	// Payment service
+	auth := base64.StdEncoding.EncodeToString([]byte(h.serverKey + ":"))
+	bReq.BasicAuthHeader = "Basic " + auth
+	bReq.PaymentType = "bank_transfer"
+	bReq.TransactionDetails.OrderID = orderID
+	bReq.TransactionDetails.GrossAmount = bReq.TotalPrice
+
+	netclientPayment := client.NetClientRequest{
+		NetClient:  client.NetClient,
+		RequestUrl: paymentUrl,
+	}
+	paymentChan := make(chan client.Response)
+	go netclientPayment.Post(bReq, paymentChan)
+	responsePayment := <-paymentChan
+	var paymentResponse map[string]interface{}
+	if responsePayment.Err != nil {
+		if err := json.Unmarshal(responsePayment.Res, &paymentResponse); err != nil {
+			helper.HandleResponse(w, h.render, http.StatusBadRequest, "Error unmarshall", nil)
+			return
+		}
+
+		helper.HandleResponse(w, h.render, http.StatusBadRequest, paymentResponse, nil)
+		return
+	}
+
+	if responsePayment.StatusCode != http.StatusCreated {
+		if err := json.Unmarshal(responsePayment.Res, &paymentResponse); err != nil {
+			helper.HandleResponse(w, h.render, http.StatusBadRequest, "Error unmarshall", nil)
+			return
+		}
+
+		helper.HandleResponse(w, h.render, http.StatusInternalServerError, paymentResponse, nil)
+		return
+	}
+
+	if err := json.Unmarshal(responsePayment.Res, &paymentResponse); err != nil {
+		helper.HandleResponse(w, h.render, http.StatusInternalServerError, err.Error(), nil)
+		return
+	}
+
+	helper.HandleResponse(w, h.render, http.StatusOK, helper.SUCCESS_MESSSAGE, paymentResponse)
 }
