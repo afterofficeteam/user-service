@@ -14,10 +14,19 @@ type Response struct {
 	Data Data `json:"data"`
 }
 
-type RequesstCreate struct {
+// SHOPS SECTION
+type CreateShopRequest struct {
 	Name string `json:"name"`
 }
 
+type GetShopsRequest struct {
+	UserId   string `json:"user_id"`
+	ShopName string `json:"shop_name"`
+	Page     string `json:"page"`
+	Limit    string `json:"limit"`
+}
+
+// PRODUCTS SECTION
 type GetProductsRequest struct {
 	ShopId      string `json:"shop_id"`
 	CategoryId  string `json:"category_id"`
