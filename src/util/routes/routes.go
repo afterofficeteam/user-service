@@ -51,6 +51,7 @@ func (r *Routes) SetupRouter() {
 	r.SetupIntegration()
 	r.SetupUser()
 	r.SetupProduct()
+	r.SetupShop()
 	r.SetupCart()
 	r.setupOrder()
 }
@@ -82,16 +83,18 @@ func (r *Routes) SetupUser() {
 }
 
 func (r *Routes) SetupProduct() {
-	shopRoutes := r.Router.PathPrefix("/shops").Subrouter()
-	shopRoutes.Use(middleware.Authentication)
-	shopRoutes.HandleFunc("/create", r.Shop.CreateShop).Methods(http.MethodPost, http.MethodOptions)
-
 	productRoutes := r.Router.PathPrefix("/products").Subrouter()
 	productRoutes.Use(middleware.Authentication)
 	productRoutes.HandleFunc("", r.Product.GetProducts).Methods(http.MethodGet, http.MethodOptions)
 	productRoutes.HandleFunc("/{product_id}", r.Product.UpdateProduct).Methods(http.MethodPut, http.MethodOptions)
 	productRoutes.HandleFunc("/create", r.Product.CreateProduct).Methods(http.MethodPost, http.MethodOptions)
 	productRoutes.HandleFunc("/{product_id}/delete", r.Product.DeleteProduct).Methods(http.MethodDelete, http.MethodOptions)
+}
+
+func (r *Routes) SetupShop() {
+	shopRoutes := r.Router.PathPrefix("/shops").Subrouter()
+	shopRoutes.Use(middleware.Authentication)
+	shopRoutes.HandleFunc("/create", r.Shop.CreateShop).Methods(http.MethodPost, http.MethodOptions)
 }
 
 func (r *Routes) SetupCart() {
