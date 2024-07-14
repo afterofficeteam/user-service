@@ -7,6 +7,7 @@ import (
 	"user-service/src/util/config"
 	"user-service/src/util/routes"
 
+	"github.com/go-playground/validator/v10"
 	"github.com/thedevsaddam/renderer"
 
 	userUsecase "user-service/src/app/dto/users"
@@ -14,6 +15,8 @@ import (
 	userStore "user-service/src/util/repository/users"
 
 	productHandler "user-service/src/handlers/products"
+
+	shopHandler "user-service/src/handlers/shop"
 
 	integrationUseCase "user-service/src/app/dto/users/integrations"
 	integrationHandler "user-service/src/handlers/users/integrations"
@@ -37,12 +40,13 @@ func main() {
 	}
 	defer sqlDb.Close()
 
+	validator := validator.New()
 	render := renderer.New()
-	routes := setupRoutes(render, sqlDb)
+	routes := setupRoutes(render, sqlDb, validator)
 	routes.Run(cfg.AppPort)
 }
 
-func setupRoutes(render *renderer.Render, myDb *sql.DB) *routes.Routes {
+func setupRoutes(render *renderer.Render, myDb *sql.DB, validator *validator.Validate) *routes.Routes {
 	userStore := userStore.NewStore(myDb)
 	userUsecase := userUsecase.NewUserUsecase(userStore)
 	userHandler := userHandler.NewUserHandler(userUsecase, render)
@@ -52,14 +56,17 @@ func setupRoutes(render *renderer.Render, myDb *sql.DB) *routes.Routes {
 
 	productHandler := productHandler.NewHandler(render)
 
+	shopHandler := shopHandler.NewHandler(render)
+
 	cartHandler := cart.NewHandler(render)
 
-	orderHandler := order.NewHandler(render)
+	orderHandler := order.NewHandler(render, validator)
 
 	return &routes.Routes{
 		Integration: integrationHandler,
 		User:        userHandler,
 		Product:     productHandler,
+		Shop:        shopHandler,
 		Cart:        cartHandler,
 		Order:       orderHandler,
 	}

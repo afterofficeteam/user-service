@@ -1,13 +1,11 @@
 package routes
 
 import (
-	"fmt"
 	"log"
 	"net/http"
-	"net/http/httptest"
-	"strings"
 	"time"
 	"user-service/src/util/config"
+	"user-service/src/util/helper"
 	"user-service/src/util/middleware"
 
 	"github.com/gorilla/mux"
@@ -16,6 +14,7 @@ import (
 	cart "user-service/src/handlers/cart"
 	order "user-service/src/handlers/order"
 	product "user-service/src/handlers/products"
+	shop "user-service/src/handlers/shop"
 	user "user-service/src/handlers/users"
 	integration "user-service/src/handlers/users/integrations"
 )
@@ -25,72 +24,9 @@ type Routes struct {
 	Integration *integration.Handler
 	User        *user.Handler
 	Product     *product.Handler
+	Shop        *shop.Handler
 	Cart        *cart.Handler
 	Order       *order.Handler
-}
-
-func EnabledCors(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		header := w.Header()
-		header.Set("Access-Control-Allow-Origin", "*")
-		header.Set("Access-Control-Allow-Methods", "DELETE, POST, GET, OPTIONS, PUT, PATCH")
-		header.Set("Access-Control-Allow-Headers", "*")
-		if r.Method == "OPTIONS" {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
-}
-
-func URLRewriter(router *mux.Router, baseURLPath string) func(w http.ResponseWriter, r *http.Request) {
-	return func(w http.ResponseWriter, r *http.Request) {
-		r.URL.Path = func(url string) string {
-			if strings.Index(url, baseURLPath) == 0 {
-				url = url[len(baseURLPath):]
-			}
-			return url
-		}(r.URL.Path)
-
-		router.ServeHTTP(w, r)
-	}
-}
-
-func LoggerMiddleware() mux.MiddlewareFunc {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if strings.Contains(r.URL.Path, "notifications") {
-				next.ServeHTTP(w, r)
-				return
-			}
-
-			start := time.Now()
-
-			recorder := httptest.NewRecorder()
-			next.ServeHTTP(recorder, r)
-
-			for k, v := range recorder.Header() {
-				w.Header()[k] = v
-			}
-			w.WriteHeader(recorder.Code)
-			recorder.Body.WriteTo(w)
-
-			responseTime := time.Since(start).Seconds()
-			formattedResponseTime := fmt.Sprintf("%.9f", responseTime)
-			formattedResponseTime = fmt.Sprintf("%sµs", formattedResponseTime)
-
-			log.Printf("%s - [%s] - [%s] \"%s %s %s\" %d %s\n",
-				r.RemoteAddr,
-				time.Now().Format(time.RFC1123),
-				formattedResponseTime,
-				r.Method,
-				r.URL.Path,
-				r.Proto,
-				recorder.Code,
-				r.UserAgent(),
-			)
-		})
-	}
 }
 
 func (r *Routes) Run(port string) {
@@ -109,12 +45,13 @@ func (r *Routes) Run(port string) {
 
 func (r *Routes) SetupRouter() {
 	r.Router = mux.NewRouter()
-	r.Router.Use(EnabledCors, LoggerMiddleware())
+	r.Router.Use(helper.EnabledCors, helper.LoggerMiddleware())
 
 	r.SetupBaseURL()
 	r.SetupIntegration()
 	r.SetupUser()
 	r.SetupProduct()
+	r.SetupShop()
 	r.SetupCart()
 	r.setupOrder()
 }
@@ -122,7 +59,7 @@ func (r *Routes) SetupRouter() {
 func (r *Routes) SetupBaseURL() {
 	baseURL := viper.GetString("BASE_URL_PATH")
 	if baseURL != "" && baseURL != "/" {
-		r.Router.PathPrefix(baseURL).HandlerFunc(URLRewriter(r.Router, baseURL))
+		r.Router.PathPrefix(baseURL).HandlerFunc(helper.URLRewriter(r.Router, baseURL))
 	}
 }
 
@@ -146,15 +83,6 @@ func (r *Routes) SetupUser() {
 }
 
 func (r *Routes) SetupProduct() {
-	// SHOPS SECTION
-	shopRoutes := r.Router.PathPrefix("/shops").Subrouter()
-	shopRoutes.HandleFunc("", r.Product.GetShops).Methods(http.MethodGet, http.MethodOptions)
-
-	authenticatedShopRoutes := shopRoutes.PathPrefix("").Subrouter()
-	authenticatedShopRoutes.Use(middleware.Authentication)
-	authenticatedShopRoutes.HandleFunc("/create", r.Product.CreateShop).Methods(http.MethodPost, http.MethodOptions)
-
-	// PRODUCTS SECTION
 	productRoutes := r.Router.PathPrefix("/products").Subrouter()
 	productRoutes.HandleFunc("", r.Product.GetProducts).Methods(http.MethodGet, http.MethodOptions)
 
@@ -164,6 +92,15 @@ func (r *Routes) SetupProduct() {
 	authenticatedProductRoutes.HandleFunc("/{product_id}", r.Product.UpdateProduct).Methods(http.MethodPut, http.MethodOptions)
 	authenticatedProductRoutes.HandleFunc("/create", r.Product.CreateProduct).Methods(http.MethodPost, http.MethodOptions)
 	authenticatedProductRoutes.HandleFunc("/{product_id}/delete", r.Product.DeleteProduct).Methods(http.MethodDelete, http.MethodOptions)
+}
+
+func (r *Routes) SetupShop() {
+	shopRoutes := r.Router.PathPrefix("/shops").Subrouter()
+	shopRoutes.HandleFunc("", r.Shop.GetShops).Methods(http.MethodGet, http.MethodOptions)
+
+	authenticatedShopRoutes := shopRoutes.PathPrefix("").Subrouter()
+	authenticatedShopRoutes.Use(middleware.Authentication)
+	authenticatedShopRoutes.HandleFunc("/create", r.Shop.CreateShop).Methods(http.MethodPost, http.MethodOptions)
 }
 
 func (r *Routes) SetupCart() {
@@ -179,6 +116,4 @@ func (r *Routes) setupOrder() {
 	orderRoutes := r.Router.PathPrefix("/order").Subrouter()
 	orderRoutes.Use(middleware.Authentication)
 	orderRoutes.HandleFunc("/create", r.Order.CreateOrder).Methods(http.MethodPost, http.MethodOptions)
-	orderRoutes.HandleFunc("/create/items", r.Order.CreateOrderItems).Methods(http.MethodPost, http.MethodOptions)
-	orderRoutes.HandleFunc("/create/items/logs", r.Order.CreateOrderItemlogs).Methods(http.MethodPost, http.MethodOptions)
 }
