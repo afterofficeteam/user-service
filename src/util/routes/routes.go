@@ -16,6 +16,7 @@ import (
 	cart "user-service/src/handlers/cart"
 	order "user-service/src/handlers/order"
 	product "user-service/src/handlers/products"
+	shop "user-service/src/handlers/shop"
 	user "user-service/src/handlers/users"
 	integration "user-service/src/handlers/users/integrations"
 )
@@ -25,6 +26,7 @@ type Routes struct {
 	Integration *integration.Handler
 	User        *user.Handler
 	Product     *product.Handler
+	Shop        *shop.Handler
 	Cart        *cart.Handler
 	Order       *order.Handler
 }
@@ -148,7 +150,7 @@ func (r *Routes) SetupUser() {
 func (r *Routes) SetupProduct() {
 	shopRoutes := r.Router.PathPrefix("/shops").Subrouter()
 	shopRoutes.Use(middleware.Authentication)
-	shopRoutes.HandleFunc("/create", r.Product.CreateShop).Methods(http.MethodPost, http.MethodOptions)
+	shopRoutes.HandleFunc("/create", r.Shop.CreateShop).Methods(http.MethodPost, http.MethodOptions)
 
 	productRoutes := r.Router.PathPrefix("/products").Subrouter()
 	productRoutes.Use(middleware.Authentication)

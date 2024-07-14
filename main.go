@@ -16,6 +16,8 @@ import (
 
 	productHandler "user-service/src/handlers/products"
 
+	shopHandler "user-service/src/handlers/shop"
+
 	integrationUseCase "user-service/src/app/dto/users/integrations"
 	integrationHandler "user-service/src/handlers/users/integrations"
 )
@@ -54,6 +56,8 @@ func setupRoutes(render *renderer.Render, myDb *sql.DB, validator *validator.Val
 
 	productHandler := productHandler.NewHandler(render)
 
+	shopHandler := shopHandler.NewHandler(render)
+
 	cartHandler := cart.NewHandler(render)
 
 	orderHandler := order.NewHandler(render, validator)
@@ -62,6 +66,7 @@ func setupRoutes(render *renderer.Render, myDb *sql.DB, validator *validator.Val
 		Integration: integrationHandler,
 		User:        userHandler,
 		Product:     productHandler,
+		Shop:        shopHandler,
 		Cart:        cartHandler,
 		Order:       orderHandler,
 	}
