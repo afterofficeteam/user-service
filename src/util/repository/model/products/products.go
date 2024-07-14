@@ -28,6 +28,7 @@ type GetShopsRequest struct {
 
 // PRODUCTS SECTION
 type GetProductsRequest struct {
+	ProductIds  string `json:"product_ids"`
 	ShopId      string `json:"shop_id"`
 	CategoryId  string `json:"category_id"`
 	Name        string `json:"name"`

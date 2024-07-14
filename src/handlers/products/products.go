@@ -78,6 +78,7 @@ func (h *Handler) CreateProduct(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetProducts(w http.ResponseWriter, r *http.Request) {
 	param := r.URL.Query()
 	request := products.GetProductsRequest{
+		ProductIds:  param.Get("product_ids"),
 		ShopId:      param.Get("shop_id"),
 		CategoryId:  param.Get("category_id"),
 		Name:        param.Get("name"),
@@ -94,6 +95,7 @@ func (h *Handler) GetProducts(w http.ResponseWriter, r *http.Request) {
 		NetClient:  client.NetClient,
 		RequestUrl: h.baseURL + "/products",
 		QueryParam: []client.QueryParams{
+			{Param: "product_ids", Value: request.ProductIds},
 			{Param: "shop_id", Value: request.ShopId},
 			{Param: "category_id", Value: request.CategoryId},
 			{Param: "name", Value: request.Name},
