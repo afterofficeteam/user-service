@@ -39,70 +39,62 @@ func NewHandler(r *renderer.Render, validator *validator.Validate, clientKey, se
 }
 
 func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
+	// Get user id from context, obtained from token
 	ctx := r.Context()
 	usrId := middleware.GetUserID(ctx)
 	uid := uuid.MustParse(usrId)
 
-	param := r.URL.Query()
-
-	// Membuat request untuk mendapatkan produk di layanan Product
-	request := order.CreateOrderRequest{
-		Limit: param.Get("limit"),
-	}
-
 	var bReq order.CreateOrderRequest
+
+	// Get limit from query param
+	param := r.URL.Query()
+	bReq.Limit = param.Get("limit")
+
+	// Decode from body request to struct
 	if err := json.NewDecoder(r.Body).Decode(&bReq); err != nil {
 		helper.HandleResponse(w, h.render, http.StatusBadRequest, err.Error(), nil)
 		return
 	}
 	bReq.UserID = uid
 
-	var productIds []string
-	for _, product := range bReq.ProductOrder {
-		productIds = append(productIds, product.ProductID)
-	}
-	productId := strings.Join(productIds, ",")
+	channel := make(chan client.Response)
 
-	productChannel := make(chan client.Response)
-	netClientProducts := client.NetClientRequest{
+	// Get data product from product service
+	var productIDs []string
+	for _, product := range bReq.ProductOrder {
+		productIDs = append(productIDs, product.ProductID)
+	}
+	productId := strings.Join(productIDs, ",")
+
+	netClientGetProducts := client.NetClientRequest{
 		NetClient:  client.NetClient,
 		RequestUrl: getproductUrl,
 		QueryParam: []client.QueryParams{
 			{Param: "product_ids", Value: productId},
-			{Param: "limit", Value: request.Limit},
+			{Param: "limit", Value: bReq.Limit},
 		},
 	}
 
-	netClientProducts.Get(nil, productChannel)
-	respProduct := <-productChannel
-	if respProduct.Err != nil {
-		if err := json.Unmarshal(respProduct.Res, &responseError); err != nil {
-			helper.HandleResponse(w, h.render, http.StatusConflict, "Error unmarshall", nil)
+	netClientGetProducts.Get(nil, channel)
+	responseGetProducts := <-channel
+	if responseGetProducts.Err != nil || responseGetProducts.StatusCode != http.StatusOK {
+		if err := json.Unmarshal(responseGetProducts.Res, &responseError); err != nil {
+			helper.HandleResponse(w, h.render, http.StatusInternalServerError, err.Error(), nil)
 			return
 		}
 
-		helper.HandleResponse(w, h.render, respProduct.StatusCode, responseError["message"], nil)
+		helper.HandleResponse(w, h.render, responseGetProducts.StatusCode, responseError, nil)
 		return
 	}
 
-	if respProduct.StatusCode != http.StatusOK {
-		if err := json.Unmarshal(respProduct.Res, &responseError); err != nil {
-			helper.HandleResponse(w, h.render, http.StatusConflict, "Error unmarshall", nil)
-			return
-		}
-
-		helper.HandleResponse(w, h.render, respProduct.StatusCode, responseError["message"], nil)
+	var dataProducts products.DataProduct
+	if err := json.Unmarshal(responseGetProducts.Res, &dataProducts); err != nil {
+		helper.HandleResponse(w, h.render, http.StatusInternalServerError, err.Error(), nil)
 		return
 	}
 
-	var productData products.DataProduct
-	if err := json.Unmarshal(respProduct.Res, &productData); err != nil {
-		helper.HandleResponse(w, h.render, http.StatusInternalServerError, err.Error(), productData)
-		return
-	}
-
-	// Jika jumlah produk tidak tersedia, kembalikan error
-	for _, prod := range productData.Data.Items {
+	// Handle check if product < order product
+	for _, prod := range dataProducts.Data.Items {
 		for _, orderProd := range bReq.ProductOrder {
 			if prod.Id == orderProd.ProductID && prod.Stock < orderProd.Qty {
 				helper.HandleResponse(w, h.render, http.StatusBadRequest, "Product out of stock", nil)
@@ -111,9 +103,9 @@ func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Menghitung subtotal harga
+	// Calucate subtotal based on price (data products) * qty (input user)
 	for i, orderProd := range bReq.ProductOrder {
-		for _, prod := range productData.Data.Items {
+		for _, prod := range dataProducts.Data.Items {
 			if prod.Id == orderProd.ProductID {
 				bReq.ProductOrder[i].Price = prod.Price
 				bReq.ProductOrder[i].SubtotalPrice = prod.Price * float64(orderProd.Qty)
@@ -121,40 +113,35 @@ func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Menghitung total harga
+	// Calculate total prices based on subtotal price
 	var total float64
 	for _, orderProd := range bReq.ProductOrder {
 		total += orderProd.SubtotalPrice
 	}
 	bReq.TotalPrice = total
 
-	// Membuat order di layanan Order
-	netClientOrder := client.NetClientRequest{
+	// Create order to order services
+	netClientCreateOrder := client.NetClientRequest{
 		NetClient:  client.NetClient,
 		RequestUrl: createOrderUrl,
 	}
-	createChan := make(chan client.Response)
-	go netClientOrder.Post(bReq, createChan)
-	responseOrder := <-createChan
-	if responseOrder.Err != nil {
-		helper.HandleResponse(w, h.render, http.StatusBadRequest, responseOrder.Err.Error(), nil)
-		return
-	}
 
-	if responseOrder.StatusCode != http.StatusCreated {
-		helper.HandleResponse(w, h.render, http.StatusInternalServerError, responseOrder.Res, nil)
+	netClientCreateOrder.Post(bReq, channel)
+	responseCreateOrder := <-channel
+	if responseCreateOrder.Err != nil || responseCreateOrder.StatusCode != http.StatusCreated {
+		helper.HandleResponse(w, h.render, responseCreateOrder.StatusCode, responseCreateOrder.Res, nil)
 		return
 	}
 
 	var orderID string
-	if err := json.Unmarshal(responseOrder.Res, &orderID); err != nil {
+	if err := json.Unmarshal(responseCreateOrder.Res, &orderID); err != nil {
 		helper.HandleResponse(w, h.render, http.StatusInternalServerError, err.Error(), nil)
 		return
 	}
 
-	// Mengupdate jumlah stok produk
+	// Calculate stock product based on data products - qty order
 	for _, orderProd := range bReq.ProductOrder {
-		for _, prod := range productData.Data.Items {
+		for _, prod := range dataProducts.Data.Items {
 			if prod.Id == orderProd.ProductID {
 				var requestUpdate order.UpdateQtyRequest
 				requestUpdate.Stock = prod.Stock - orderProd.Qty
@@ -164,68 +151,47 @@ func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Mengupdate stok di layanan Product
-	netclientUpdateStock := client.NetClientRequest{
+	// Update stock product to product service
+	netClientUpdateStock := client.NetClientRequest{
 		NetClient:  client.NetClient,
 		RequestUrl: updateProductUrl,
 	}
-	updateStockChan := make(chan client.Response)
-	go netclientUpdateStock.Patch(bReq.UpdateQty, updateStockChan)
-	responseUpdateStock := <-updateStockChan
 
-	var responseUpdate string
-	if responseUpdateStock.Err != nil {
-		if err := json.Unmarshal(respProduct.Res, &responseUpdate); err != nil {
-			helper.HandleResponse(w, h.render, http.StatusConflict, "Error unmarshall", nil)
+	netClientUpdateStock.Patch(bReq.UpdateQty, channel)
+	responseUpdateStock := <-channel
+	if responseUpdateStock.Err != nil || responseUpdateStock.StatusCode != http.StatusOK {
+		if err := json.Unmarshal(responseUpdateStock.Res, &responseError); err != nil {
+			helper.HandleResponse(w, h.render, http.StatusInternalServerError, err.Error(), nil)
 			return
 		}
 
-		helper.HandleResponse(w, h.render, respProduct.StatusCode, responseUpdate, nil)
+		helper.HandleResponse(w, h.render, responseUpdateStock.StatusCode, responseError, nil)
 		return
 	}
 
-	if responseUpdateStock.StatusCode != http.StatusOK {
-		if err := json.Unmarshal(respProduct.Res, &responseUpdate); err != nil {
-			helper.HandleResponse(w, h.render, http.StatusConflict, "Error unmarshall", nil)
-			return
-		}
-
-		helper.HandleResponse(w, h.render, respProduct.StatusCode, responseUpdate, nil)
-		return
-	}
-
-	// Payment service
-	auth := base64.StdEncoding.EncodeToString([]byte(h.serverKey + ":"))
-	bReq.BasicAuthHeader = "Basic " + auth
+	// Set auth header, payment type, and transaction details for request payment services
+	bReq.BasicAuthHeader = "Basic " + base64.StdEncoding.EncodeToString([]byte(h.serverKey+":"))
 	bReq.PaymentType = "bank_transfer"
 	bReq.TransactionDetails.OrderID = orderID
 	bReq.TransactionDetails.GrossAmount = bReq.TotalPrice
 
-	netclientPayment := client.NetClientRequest{
+	// Create payment to payment services
+	netClientPayment := client.NetClientRequest{
 		NetClient:  client.NetClient,
 		RequestUrl: paymentUrl,
 	}
-	paymentChan := make(chan client.Response)
-	go netclientPayment.Post(bReq, paymentChan)
-	responsePayment := <-paymentChan
+
+	netClientPayment.Post(bReq, channel)
+	responsePayment := <-channel
+
 	var paymentResponse map[string]interface{}
-	if responsePayment.Err != nil {
+	if responsePayment.Err != nil || responsePayment.StatusCode != http.StatusCreated {
 		if err := json.Unmarshal(responsePayment.Res, &paymentResponse); err != nil {
-			helper.HandleResponse(w, h.render, http.StatusBadRequest, "Error unmarshall", nil)
+			helper.HandleResponse(w, h.render, http.StatusInternalServerError, err.Error(), nil)
 			return
 		}
 
-		helper.HandleResponse(w, h.render, http.StatusBadRequest, paymentResponse, nil)
-		return
-	}
-
-	if responsePayment.StatusCode != http.StatusCreated {
-		if err := json.Unmarshal(responsePayment.Res, &paymentResponse); err != nil {
-			helper.HandleResponse(w, h.render, http.StatusBadRequest, "Error unmarshall", nil)
-			return
-		}
-
-		helper.HandleResponse(w, h.render, http.StatusInternalServerError, paymentResponse, nil)
+		helper.HandleResponse(w, h.render, responsePayment.StatusCode, paymentResponse, nil)
 		return
 	}
 
@@ -234,5 +200,5 @@ func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	helper.HandleResponse(w, h.render, http.StatusOK, helper.SUCCESS_MESSSAGE, paymentResponse)
+	helper.HandleResponse(w, h.render, responsePayment.StatusCode, helper.SUCCESS_MESSSAGE, paymentResponse)
 }
