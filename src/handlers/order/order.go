@@ -63,7 +63,11 @@ func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	}
 	bReq.UserID = uid
 
-	channel := make(chan client.Response)
+	// Channel for each request
+	getProductChannel := make(chan client.Response)
+	createOrderChannel := make(chan client.Response)
+	updateStockChannel := make(chan client.Response)
+	paymentChannel := make(chan client.Response)
 
 	// Get data product from product service
 	var productIDs []string
@@ -81,8 +85,8 @@ func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	netClientGetProducts.Get(nil, channel)
-	responseGetProducts := <-channel
+	netClientGetProducts.Get(nil, getProductChannel)
+	responseGetProducts := <-getProductChannel
 	if responseGetProducts.Err != nil || responseGetProducts.StatusCode != http.StatusOK {
 		if err := json.Unmarshal(responseGetProducts.Res, &responseError); err != nil {
 			helper.HandleResponse(w, h.render, http.StatusInternalServerError, err.Error(), nil)
@@ -132,8 +136,8 @@ func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		RequestUrl: createOrderUrl,
 	}
 
-	netClientCreateOrder.Post(bReq, channel)
-	responseCreateOrder := <-channel
+	netClientCreateOrder.Post(bReq, createOrderChannel)
+	responseCreateOrder := <-createOrderChannel
 	if responseCreateOrder.Err != nil || responseCreateOrder.StatusCode != http.StatusCreated {
 		helper.HandleResponse(w, h.render, responseCreateOrder.StatusCode, responseCreateOrder.Res, nil)
 		return
@@ -163,8 +167,8 @@ func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		RequestUrl: updateProductUrl,
 	}
 
-	netClientUpdateStock.Patch(bReq.UpdateQty, channel)
-	responseUpdateStock := <-channel
+	netClientUpdateStock.Patch(bReq.UpdateQty, updateStockChannel)
+	responseUpdateStock := <-updateStockChannel
 	if responseUpdateStock.Err != nil || responseUpdateStock.StatusCode != http.StatusOK {
 		if err := json.Unmarshal(responseUpdateStock.Res, &responseError); err != nil {
 			helper.HandleResponse(w, h.render, http.StatusInternalServerError, err.Error(), nil)
@@ -187,8 +191,8 @@ func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		RequestUrl: paymentUrl,
 	}
 
-	netClientPayment.Post(bReq, channel)
-	responsePayment := <-channel
+	netClientPayment.Post(bReq, paymentChannel)
+	responsePayment := <-paymentChannel
 
 	var paymentResponse map[string]interface{}
 	if responsePayment.Err != nil || responsePayment.StatusCode != http.StatusCreated {
