@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strings"
+	"sync"
 	"user-service/src/util/client"
 	"user-service/src/util/helper"
 	"user-service/src/util/middleware"
@@ -23,6 +24,7 @@ var (
 type Handler struct {
 	render    *renderer.Render
 	validator *validator.Validate
+	mutex     *sync.Mutex
 	clientKey string
 	serverKey string
 }
@@ -34,11 +36,15 @@ const (
 	paymentUrl       = "http://localhost:4000/api/payments"
 )
 
-func NewHandler(r *renderer.Render, validator *validator.Validate, clientKey, serverKey string) *Handler {
-	return &Handler{render: r, validator: validator, clientKey: clientKey, serverKey: serverKey}
+func NewHandler(r *renderer.Render, validator *validator.Validate, mutex *sync.Mutex, clientKey, serverKey string) *Handler {
+	return &Handler{render: r, validator: validator, mutex: mutex, clientKey: clientKey, serverKey: serverKey}
 }
 
 func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
+	// Lock the mutex before accessing the critical section
+	h.mutex.Lock()
+	defer h.mutex.Unlock()
+
 	// Get user id from context, obtained from token
 	ctx := r.Context()
 	usrId := middleware.GetUserID(ctx)

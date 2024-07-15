@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"sync"
 	"user-service/src/handlers/cart"
 	"user-service/src/handlers/order"
 	"user-service/src/util/config"
@@ -40,13 +41,14 @@ func main() {
 	}
 	defer sqlDb.Close()
 
+	mutex := &sync.Mutex{}
 	validator := validator.New()
 	render := renderer.New()
-	routes := setupRoutes(render, sqlDb, validator, cfg)
+	routes := setupRoutes(render, sqlDb, validator, cfg, mutex)
 	routes.Run(cfg.AppPort)
 }
 
-func setupRoutes(render *renderer.Render, myDb *sql.DB, validator *validator.Validate, config *config.Config) *routes.Routes {
+func setupRoutes(render *renderer.Render, myDb *sql.DB, validator *validator.Validate, config *config.Config, mutex *sync.Mutex) *routes.Routes {
 	userStore := userStore.NewStore(myDb)
 	userUsecase := userUsecase.NewUserUsecase(userStore)
 	userHandler := userHandler.NewUserHandler(userUsecase, render)
@@ -60,7 +62,7 @@ func setupRoutes(render *renderer.Render, myDb *sql.DB, validator *validator.Val
 
 	cartHandler := cart.NewHandler(render)
 
-	orderHandler := order.NewHandler(render, validator, config.ClientKey, config.ServerKey)
+	orderHandler := order.NewHandler(render, validator, mutex, config.ClientKey, config.ServerKey)
 
 	return &routes.Routes{
 		Integration: integrationHandler,
