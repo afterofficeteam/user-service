@@ -41,10 +41,6 @@ func NewHandler(r *renderer.Render, validator *validator.Validate, mutex *sync.M
 }
 
 func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
-	// Lock the mutex before accessing the critical section
-	h.mutex.Lock()
-	defer h.mutex.Unlock()
-
 	// Get user id from context, obtained from token
 	ctx := r.Context()
 	usrId := middleware.GetUserID(ctx)
@@ -75,6 +71,10 @@ func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 		productIDs = append(productIDs, product.ProductID)
 	}
 	productId := strings.Join(productIDs, ",")
+
+	// Lock the mutex before accessing the critical section
+	h.mutex.Lock()
+	defer h.mutex.Unlock()
 
 	netClientGetProducts := client.NetClientRequest{
 		NetClient:  client.NetClient,
