@@ -116,4 +116,8 @@ func (r *Routes) setupOrder() {
 	orderRoutes := r.Router.PathPrefix("/order").Subrouter()
 	orderRoutes.Use(middleware.Authentication)
 	orderRoutes.HandleFunc("/create", r.Order.CreateOrder).Methods(http.MethodPost, http.MethodOptions)
+	orderRoutes.HandleFunc("/status/{order_id}", r.Order.CheckStatusPayment).Methods(http.MethodGet, http.MethodOptions)
+
+	callbackRoutes := r.Router.PathPrefix("/order/callback").Subrouter()
+	callbackRoutes.HandleFunc("", r.Order.CallbackPayment).Methods(http.MethodPost, http.MethodOptions)
 }

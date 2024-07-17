@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 	"user-service/src/util/client"
 	"user-service/src/util/helper"
 	"user-service/src/util/middleware"
@@ -14,6 +15,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 	"github.com/google/uuid"
+	"github.com/gorilla/mux"
 	"github.com/thedevsaddam/renderer"
 )
 
@@ -30,10 +32,17 @@ type Handler struct {
 }
 
 const (
-	createOrderUrl   = "http://localhost:9993/order/create"
-	getproductUrl    = "http://localhost:3000/api/products"
-	updateProductUrl = "http://localhost:3000/api/product-stocks"
-	paymentUrl       = "http://localhost:4000/api/payments"
+	// Service Order
+	createOrderUrl = "https://8c5c-182-253-51-145.ngrok-free.app/order/create"
+	callbackUrl    = "https://8c5c-182-253-51-145.ngrok-free.app/order/callback"
+	checkStatusUrl = "https://8c5c-182-253-51-145.ngrok-free.app/order/status/"
+
+	// Service Product
+	getproductUrl    = "https://362c-182-253-51-145.ngrok-free.app/api/products"
+	updateProductUrl = "https://362c-182-253-51-145.ngrok-free.app/api/product-stocks"
+
+	// Service Payment
+	paymentUrl = "https://51e6-182-253-51-145.ngrok-free.app/api/payments"
 )
 
 func NewHandler(r *renderer.Render, validator *validator.Validate, mutex *sync.Mutex, clientKey, serverKey string) *Handler {
@@ -211,4 +220,76 @@ func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	}
 
 	helper.HandleResponse(w, h.render, responsePayment.StatusCode, helper.SUCCESS_MESSSAGE, paymentResponse)
+}
+
+func (h *Handler) CallbackPayment(w http.ResponseWriter, r *http.Request) {
+	var midtrans order.RequestFromMidtrans
+	if err := json.NewDecoder(r.Body).Decode(&midtrans); err != nil {
+		helper.HandleResponse(w, h.render, http.StatusBadRequest, err.Error(), nil)
+		return
+	}
+
+	if strings.Contains(midtrans.StatusMessage, "notification") {
+		helper.HandleResponse(w, h.render, http.StatusNotFound, "not a notification path", nil)
+		return
+	}
+
+	timeNow := time.Now()
+	var bReq order.RequestCallback
+	bReq.OrderId = midtrans.OrderID
+	bReq.Status = "Payment"
+	bReq.IsPaid = true
+	bReq.UpdatedAt = &timeNow
+
+	callbackChannel := make(chan client.Response)
+	netClient := client.NetClientRequest{
+		NetClient:  client.NetClient,
+		RequestUrl: callbackUrl,
+	}
+	netClient.Post(bReq, callbackChannel)
+	responseCallback := <-callbackChannel
+	if responseCallback.Err != nil || responseCallback.StatusCode != http.StatusOK {
+		helper.HandleResponse(w, h.render, responseCallback.StatusCode, responseCallback.Res, nil)
+		return
+	}
+
+	var bResp string
+	if err := json.Unmarshal(responseCallback.Res, &bResp); err != nil {
+		helper.HandleResponse(w, h.render, http.StatusInternalServerError, err.Error(), nil)
+		return
+	}
+
+	helper.HandleResponse(w, h.render, responseCallback.StatusCode, helper.SUCCESS_MESSSAGE, bResp)
+}
+
+func (h *Handler) CheckStatusPayment(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	usrId := middleware.GetUserID(ctx)
+
+	param := mux.Vars(r)
+	orderId := param["order_id"]
+
+	checkStatusChannel := make(chan client.Response)
+	netClient := client.NetClientRequest{
+		NetClient:  client.NetClient,
+		RequestUrl: checkStatusUrl + usrId,
+		QueryParam: []client.QueryParams{
+			{Param: "order_id", Value: orderId},
+		},
+	}
+
+	netClient.Get(nil, checkStatusChannel)
+	responseCheckStatus := <-checkStatusChannel
+	if responseCheckStatus.Err != nil || responseCheckStatus.StatusCode != http.StatusOK {
+		helper.HandleResponse(w, h.render, responseCheckStatus.StatusCode, responseCheckStatus.Res, nil)
+		return
+	}
+
+	var bResp order.Order
+	if err := json.Unmarshal(responseCheckStatus.Res, &bResp); err != nil {
+		helper.HandleResponse(w, h.render, http.StatusInternalServerError, err.Error(), nil)
+		return
+	}
+
+	helper.HandleResponse(w, h.render, responseCheckStatus.StatusCode, helper.SUCCESS_MESSSAGE, bResp)
 }
