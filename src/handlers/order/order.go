@@ -11,6 +11,7 @@ import (
 	"user-service/src/util/helper"
 	"user-service/src/util/middleware"
 	"user-service/src/util/repository/model/order"
+	"user-service/src/util/repository/model/payment"
 	"user-service/src/util/repository/model/products"
 
 	"github.com/go-playground/validator/v10"
@@ -203,7 +204,7 @@ func (h *Handler) CreateOrder(w http.ResponseWriter, r *http.Request) {
 	netClientPayment.Post(bReq, paymentChannel)
 	responsePayment := <-paymentChannel
 
-	var paymentResponse map[string]interface{}
+	var paymentResponse payment.CreatePaymentResponse
 	if responsePayment.Err != nil || responsePayment.StatusCode != http.StatusCreated {
 		if err := json.Unmarshal(responsePayment.Res, &paymentResponse); err != nil {
 			helper.HandleResponse(w, h.render, http.StatusInternalServerError, err.Error(), nil)
