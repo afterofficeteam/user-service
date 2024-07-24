@@ -9,16 +9,16 @@ import (
 
 var signedKey = []byte("test")
 
-func CreateRefreshToken(email string, userID string, tokenExpiry time.Duration) (string, *Payload, error) {
-	return createToken(email, userID, tokenExpiry)
+func CreateRefreshToken(email string, userID string, role string, tokenExpiry time.Duration) (string, *Payload, error) {
+	return createToken(email, userID, role, tokenExpiry)
 }
 
-func CreateAccessToken(email string, userID string, tokenExpiry time.Duration) (string, *Payload, error) {
-	return createToken(email, userID, tokenExpiry)
+func CreateAccessToken(email string, userID string, role string, tokenExpiry time.Duration) (string, *Payload, error) {
+	return createToken(email, userID, role, tokenExpiry)
 }
 
-func createToken(email string, userID string, tokenExpiry time.Duration) (string, *Payload, error) {
-	payload, err := NewPayload(email, userID, tokenExpiry)
+func createToken(email string, userID string, role string, tokenExpiry time.Duration) (string, *Payload, error) {
+	payload, err := NewPayload(email, userID, role, tokenExpiry)
 	if err != nil {
 		return "", nil, err // Added signed with error handling
 	}

@@ -34,9 +34,11 @@ type Handler struct {
 
 const (
 	// Service Order
-	createOrderUrl = "https://8c5c-182-253-51-145.ngrok-free.app/order/create"
-	callbackUrl    = "https://8c5c-182-253-51-145.ngrok-free.app/order/callback"
-	checkStatusUrl = "https://8c5c-182-253-51-145.ngrok-free.app/order/status/"
+	createOrderUrl   = "https://8c5c-182-253-51-145.ngrok-free.app/order/create"
+	callbackUrl      = "https://8c5c-182-253-51-145.ngrok-free.app/order/callback"
+	checkStatusUrl   = "https://8c5c-182-253-51-145.ngrok-free.app/order/status/"
+	updateStatusUrl  = "https://localhost:9993/order/status/update"
+	updateShppingUrl = "https://localhost:9993/order/shipping/update"
 
 	// Service Product
 	getproductUrl    = "https://362c-182-253-51-145.ngrok-free.app/api/products"
@@ -293,4 +295,80 @@ func (h *Handler) CheckStatusPayment(w http.ResponseWriter, r *http.Request) {
 	}
 
 	helper.HandleResponse(w, h.render, responseCheckStatus.StatusCode, helper.SUCCESS_MESSSAGE, bResp)
+}
+
+func (h *Handler) UpdateStatus(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	usrID := middleware.GetUserID(ctx)
+	uid, err := uuid.Parse(usrID)
+	if err != nil {
+		helper.HandleResponse(w, h.render, http.StatusBadRequest, "Error parse uuid", nil)
+		return
+	}
+
+	orderID := mux.Vars(r)["order_id"]
+	oid, err := uuid.Parse(orderID)
+	if err != nil {
+		helper.HandleResponse(w, h.render, http.StatusBadRequest, "Error parse uuid", nil)
+		return
+	}
+
+	var bReq order.UpdateStatus
+	if err := json.NewDecoder(r.Body).Decode(&bReq); err != nil {
+		helper.HandleResponse(w, h.render, http.StatusBadRequest, err.Error(), nil)
+		return
+	}
+	bReq.UserID = uid
+	bReq.OrderID = oid
+
+	updateChannel := make(chan client.Response)
+	go client.Put(client.NetClient, updateStatusUrl, bReq, updateChannel)
+	bResp := <-updateChannel
+	if bResp.Err != nil || bResp.StatusCode != http.StatusOK {
+		helper.HandleResponse(w, h.render, bResp.StatusCode, bResp.Err.Error(), nil)
+		return
+	}
+
+	var response string
+	if err := json.Unmarshal(bResp.Res, &response); err != nil {
+		helper.HandleResponse(w, h.render, http.StatusConflict, "Error unmarshall response", nil)
+		return
+	}
+
+	helper.HandleResponse(w, h.render, http.StatusCreated, helper.SUCCESS_MESSSAGE, response)
+}
+
+func (h *Handler) SellerUpdateStatus(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	role := middleware.GetRole(ctx)
+	usrID := middleware.GetUserID(ctx)
+	uid, err := uuid.Parse(usrID)
+	if err != nil {
+		helper.HandleResponse(w, h.render, http.StatusBadRequest, "Error parse uuid", nil)
+		return
+	}
+
+	if role != middleware.RoleSeller {
+		helper.HandleResponse(w, h.render, http.StatusForbidden, "You are not Seller", nil)
+		return
+	}
+
+	var bReq order.RequestUpdateShipping
+	if err := json.NewDecoder(r.Body).Decode(&bReq); err != nil {
+		helper.HandleResponse(w, h.render, http.StatusBadRequest, err.Error(), nil)
+		return
+	}
+
+	bReq.UserID = uid
+
+	netClient := client.NetClient
+	updateShippingChannel := make(chan client.Response)
+	client.Put(netClient, updateShppingUrl, bReq, updateShippingChannel)
+	bResp := <-updateShippingChannel
+	if bResp.Err != nil || bResp.StatusCode != http.StatusCreated {
+		helper.HandleResponse(w, h.render, bResp.StatusCode, bResp.Err.Error(), nil)
+		return
+	}
+
+	helper.HandleResponse(w, h.render, http.StatusCreated, helper.SUCCESS_MESSSAGE, nil)
 }

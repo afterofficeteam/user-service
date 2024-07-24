@@ -8,9 +8,21 @@ import (
 )
 
 const userKey = "UserID"
+const roleKey = "Role"
+
+const (
+	RoleAdmin  = "Admin"
+	RoleUser   = "User"
+	RoleSeller = "Seller"
+)
 
 func SetUserID(ctx context.Context, userID string) context.Context {
 	ctx = context.WithValue(ctx, userKey, userID)
+	return ctx
+}
+
+func SetRole(ctx context.Context, role string) context.Context {
+	ctx = context.WithValue(ctx, roleKey, role)
 	return ctx
 }
 
@@ -21,6 +33,15 @@ func GetUserID(ctx context.Context) string {
 	}
 
 	return userID
+}
+
+func GetRole(ctx context.Context) string {
+	role, ok := ctx.Value(roleKey).(string)
+	if !ok {
+		return ""
+	}
+
+	return role
 }
 
 func Authentication(next http.Handler) http.Handler {
@@ -50,6 +71,7 @@ func Authentication(next http.Handler) http.Handler {
 		}
 
 		ctx = SetUserID(ctx, payload.UserID)
+		ctx = SetRole(ctx, payload.Role)
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})

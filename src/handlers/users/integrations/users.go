@@ -127,13 +127,13 @@ func handleOAuthCallback(w http.ResponseWriter, r *http.Request, render *rendere
 		}
 
 		tokenExpiry := time.Minute * 20
-		accessToken, payload, err := jwt.CreateAccessToken(usrLogin.Email, usrLogin.Id.String(), tokenExpiry)
+		accessToken, payload, err := jwt.CreateAccessToken(usrLogin.Email, usrLogin.Id.String(), usrLogin.Role, tokenExpiry)
 		if err != nil {
 			return
 		}
 
 		refreshTokenExpiry := time.Hour * 72
-		refreshToken, refreshTokenPayload, err := jwt.CreateRefreshToken(usrLogin.Email, usrLogin.Id.String(), refreshTokenExpiry)
+		refreshToken, refreshTokenPayload, err := jwt.CreateRefreshToken(usrLogin.Email, usrLogin.Id.String(), usrLogin.Role, refreshTokenExpiry)
 		if err != nil {
 			return
 		}

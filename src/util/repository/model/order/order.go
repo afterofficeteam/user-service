@@ -101,3 +101,15 @@ type Order struct {
 	UpdatedAt     *time.Time  `json:"updated_at"`
 	DeletedAt     *time.Time  `json:"deleted_at"`
 }
+
+type UpdateStatus struct {
+	UserID  uuid.UUID `json:"user_id"`
+	OrderID uuid.UUID `json:"order_id"`
+	Status  string    `json:"status"`
+}
+
+type RequestUpdateShipping struct {
+	UserID             uuid.UUID `json:"user_id" validate:"required"`
+	ShippingStatusFrom string    `json:"shipping_status_from" validate:"required"`
+	ShippingStatusTo   string    `json:"shipping_status_to" validate:"required"`
+}
