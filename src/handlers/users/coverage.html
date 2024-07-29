@@ -1,0 +1,492 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>integrations: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">user-service/src/handlers/users/integrations/users.go (0.0%)</option>
+				
+				<option value="file1">user-service/src/handlers/users/mock_users.go (100.0%)</option>
+				
+				<option value="file2">user-service/src/handlers/users/users.go (100.0%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">not covered</span>
+				<span class="cov8">covered</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">package integrations
+
+import (
+        "net/http"
+        "strings"
+        "time"
+        "user-service/src/util/helper"
+        "user-service/src/util/helper/integrations"
+        "user-service/src/util/helper/jwt"
+        "user-service/src/util/repository/model/users"
+
+        "github.com/google/uuid"
+        "github.com/thedevsaddam/renderer"
+)
+
+type userDto interface {
+        Register(bReq users.Users) (*uuid.UUID, error)
+}
+
+type userDtoIntegration interface {
+        GetUsers(bReq users.RequestUsers) (*[]users.Users, int, error)
+        Login(bReq users.Users) (*users.Users, error)
+        UserDataSignUp(state, code string) (*users.OauthUserData, error)
+        UserDataSignIn(state, code string) (*users.OauthUserData, error)
+}
+
+type Handler struct {
+        render      *renderer.Render
+        dto         userDto
+        integration userDtoIntegration
+}
+
+func NewHandler(render *renderer.Render, dto userDto, integration userDtoIntegration) *Handler <span class="cov0" title="0">{
+        return &amp;Handler{
+                render:      render,
+                dto:         dto,
+                integration: integration,
+        }
+}</span>
+
+func (h *Handler) SignUp(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        http.Redirect(w, r, integrations.SSOSignup.AuthCodeURL(integrations.RandomString), http.StatusTemporaryRedirect)
+}</span>
+
+func (h *Handler) SignIn(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        http.Redirect(w, r, integrations.SSOSignin.AuthCodeURL(integrations.RandomString), http.StatusTemporaryRedirect)
+}</span>
+
+func (h *Handler) RedirectSignUp(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        handleOAuthCallback(w, r, h.render, h.dto, h.integration, h.integration.UserDataSignUp, true)
+}</span>
+
+func (h *Handler) RedirectSignIn(w http.ResponseWriter, r *http.Request) <span class="cov0" title="0">{
+        handleOAuthCallback(w, r, h.render, h.dto, h.integration, h.integration.UserDataSignIn, false)
+}</span>
+
+func handleOAuthCallback(w http.ResponseWriter, r *http.Request, render *renderer.Render, dto userDto, integration userDtoIntegration, userDataFunc func(state, code string) (*users.OauthUserData, error), register bool) <span class="cov0" title="0">{
+        state, code := r.FormValue("state"), r.FormValue("code")
+        if state == "" || code == "" </span><span class="cov0" title="0">{
+                helper.HandleResponse(w, render, http.StatusConflict, "state or code is nil", nil)
+                return
+        }</span>
+
+        <span class="cov0" title="0">userData, err := userDataFunc(state, code)
+        if err != nil </span><span class="cov0" title="0">{
+                helper.HandleResponse(w, render, http.StatusInternalServerError, err.Error(), nil)
+                return
+        }</span>
+
+        <span class="cov0" title="0">if register </span><span class="cov0" title="0">{
+                // Check user already registered
+                checkUser, _, err := integration.GetUsers(users.RequestUsers{
+                        Email: userData.Email,
+                        Page:  1,
+                        Limit: 1,
+                })
+                if err != nil </span><span class="cov0" title="0">{
+                        helper.HandleResponse(w, render, http.StatusInternalServerError, err, nil)
+                        return
+                }</span>
+
+                <span class="cov0" title="0">if len(*checkUser) &gt; 0 </span><span class="cov0" title="0">{
+                        helper.HandleResponse(w, render, http.StatusConflict, "User already registered", nil)
+                        return
+                }</span>
+
+                // Register user
+                <span class="cov0" title="0">userName := strings.ReplaceAll(strings.ToLower(userData.GivenName), " ", "")
+                bResp, err := dto.Register(users.Users{
+                        Email:    userData.Email,
+                        Username: userName,
+                        Role:     "Admin",
+                        CategoryPreferences: []string{
+                                "Baju",
+                                "Buku",
+                        },
+                        Address: "Jakarta",
+                })
+                if err != nil </span><span class="cov0" title="0">{
+                        helper.HandleResponse(w, render, http.StatusInternalServerError, err, nil)
+                        return
+                }</span>
+
+                <span class="cov0" title="0">helper.HandleResponse(w, render, http.StatusOK, helper.SUCCESS_MESSSAGE, bResp)</span>
+        } else<span class="cov0" title="0"> {
+                checkUser, _, err := integration.GetUsers(users.RequestUsers{
+                        Email: userData.Email,
+                        Page:  1,
+                        Limit: 1,
+                })
+                if err != nil </span><span class="cov0" title="0">{
+                        helper.HandleResponse(w, render, http.StatusInternalServerError, err, nil)
+                        return
+                }</span>
+
+                <span class="cov0" title="0">if len(*checkUser) == 0 </span><span class="cov0" title="0">{
+                        helper.HandleResponse(w, render, http.StatusConflict, "User not yet registered", nil)
+                        return
+                }</span>
+
+                <span class="cov0" title="0">usrLogin, err := integration.Login(users.Users{
+                        Email: userData.Email,
+                })
+                if err != nil </span><span class="cov0" title="0">{
+                        helper.HandleResponse(w, render, http.StatusInternalServerError, err, nil)
+                        return
+                }</span>
+
+                <span class="cov0" title="0">tokenExpiry := time.Minute * 20
+                accessToken, payload, err := jwt.CreateAccessToken(usrLogin.Email, usrLogin.Id.String(), usrLogin.Role, tokenExpiry)
+                if err != nil </span><span class="cov0" title="0">{
+                        return
+                }</span>
+
+                <span class="cov0" title="0">refreshTokenExpiry := time.Hour * 72
+                refreshToken, refreshTokenPayload, err := jwt.CreateRefreshToken(usrLogin.Email, usrLogin.Id.String(), usrLogin.Role, refreshTokenExpiry)
+                if err != nil </span><span class="cov0" title="0">{
+                        return
+                }</span>
+
+                <span class="cov0" title="0">bResp := users.LoginResponse{
+                        AccessToken:          accessToken,
+                        AccessTokenExpiresAt: payload.ExpiresAt.Time,
+                        RefreshToken:         refreshToken,
+                        RefreshTokenExpiryAt: refreshTokenPayload.ExpiresAt.Time,
+                        Users:                usrLogin,
+                }
+
+                helper.HandleResponse(w, render, http.StatusOK, helper.SUCCESS_MESSSAGE, bResp)</span>
+        }
+}
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">// Code generated by MockGen. DO NOT EDIT.
+// Source: users.go
+
+// Package users is a generated GoMock package.
+package users
+
+import (
+        reflect "reflect"
+        model "user-service/src/util/repository/model"
+        users "user-service/src/util/repository/model/users"
+
+        gomock "github.com/golang/mock/gomock"
+        uuid "github.com/google/uuid"
+)
+
+// MockuserDto is a mock of userDto interface.
+type MockuserDto struct {
+        ctrl     *gomock.Controller
+        recorder *MockuserDtoMockRecorder
+}
+
+// MockuserDtoMockRecorder is the mock recorder for MockuserDto.
+type MockuserDtoMockRecorder struct {
+        mock *MockuserDto
+}
+
+// NewMockuserDto creates a new mock instance.
+func NewMockuserDto(ctrl *gomock.Controller) *MockuserDto <span class="cov8" title="1">{
+        mock := &amp;MockuserDto{ctrl: ctrl}
+        mock.recorder = &amp;MockuserDtoMockRecorder{mock}
+        return mock
+}</span>
+
+// EXPECT returns an object that allows the caller to indicate expected use.
+func (m *MockuserDto) EXPECT() *MockuserDtoMockRecorder <span class="cov8" title="1">{
+        return m.recorder
+}</span>
+
+// Get mocks base method.
+func (m *MockuserDto) Get(bReq users.RequestUsers) (*model.BaseModel, error) <span class="cov8" title="1">{
+        m.ctrl.T.Helper()
+        ret := m.ctrl.Call(m, "Get", bReq)
+        ret0, _ := ret[0].(*model.BaseModel)
+        ret1, _ := ret[1].(error)
+        return ret0, ret1
+}</span>
+
+// Get indicates an expected call of Get.
+func (mr *MockuserDtoMockRecorder) Get(bReq interface{}) *gomock.Call <span class="cov8" title="1">{
+        mr.mock.ctrl.T.Helper()
+        return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Get", reflect.TypeOf((*MockuserDto)(nil).Get), bReq)
+}</span>
+
+// Login mocks base method.
+func (m *MockuserDto) Login(bReq users.Users) (*users.LoginResponse, error) <span class="cov8" title="1">{
+        m.ctrl.T.Helper()
+        ret := m.ctrl.Call(m, "Login", bReq)
+        ret0, _ := ret[0].(*users.LoginResponse)
+        ret1, _ := ret[1].(error)
+        return ret0, ret1
+}</span>
+
+// Login indicates an expected call of Login.
+func (mr *MockuserDtoMockRecorder) Login(bReq interface{}) *gomock.Call <span class="cov8" title="1">{
+        mr.mock.ctrl.T.Helper()
+        return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Login", reflect.TypeOf((*MockuserDto)(nil).Login), bReq)
+}</span>
+
+// Register mocks base method.
+func (m *MockuserDto) Register(bReq users.Users) (*uuid.UUID, error) <span class="cov8" title="1">{
+        m.ctrl.T.Helper()
+        ret := m.ctrl.Call(m, "Register", bReq)
+        ret0, _ := ret[0].(*uuid.UUID)
+        ret1, _ := ret[1].(error)
+        return ret0, ret1
+}</span>
+
+// Register indicates an expected call of Register.
+func (mr *MockuserDtoMockRecorder) Register(bReq interface{}) *gomock.Call <span class="cov8" title="1">{
+        mr.mock.ctrl.T.Helper()
+        return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Register", reflect.TypeOf((*MockuserDto)(nil).Register), bReq)
+}</span>
+
+// UpdateProfile mocks base method.
+func (m *MockuserDto) UpdateProfile(id uuid.UUID, bReq users.Users) error <span class="cov8" title="1">{
+        m.ctrl.T.Helper()
+        ret := m.ctrl.Call(m, "UpdateProfile", id, bReq)
+        ret0, _ := ret[0].(error)
+        return ret0
+}</span>
+
+// UpdateProfile indicates an expected call of UpdateProfile.
+func (mr *MockuserDtoMockRecorder) UpdateProfile(id, bReq interface{}) *gomock.Call <span class="cov8" title="1">{
+        mr.mock.ctrl.T.Helper()
+        return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateProfile", reflect.TypeOf((*MockuserDto)(nil).UpdateProfile), id, bReq)
+}</span>
+</pre>
+		
+		<pre class="file" id="file2" style="display: none">package users
+
+import (
+        "encoding/json"
+        "net/http"
+        "strconv"
+        "user-service/src/util/helper"
+        "user-service/src/util/repository/model"
+        "user-service/src/util/repository/model/users"
+
+        "github.com/google/uuid"
+        "github.com/gorilla/mux"
+        "github.com/thedevsaddam/renderer"
+)
+
+type userDto interface {
+        Register(bReq users.Users) (*uuid.UUID, error)
+        Get(bReq users.RequestUsers) (*model.BaseModel, error)
+        UpdateProfile(id uuid.UUID, bReq users.Users) error
+        Login(bReq users.Users) (*users.LoginResponse, error)
+}
+
+type Handler struct {
+        render *renderer.Render
+        dto    userDto
+}
+
+func NewUserHandler(dto userDto, render *renderer.Render) *Handler <span class="cov8" title="1">{
+        return &amp;Handler{
+                dto:    dto,
+                render: render,
+        }
+}</span>
+
+func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+        param := mux.Vars(r)
+        id := param["user_id"]
+
+        usrId, err := uuid.Parse(id)
+        if err != nil </span><span class="cov8" title="1">{
+                helper.HandleResponse(w, h.render, http.StatusBadRequest, "Invalid user id", nil)
+                return
+        }</span>
+
+        <span class="cov8" title="1">var bReq users.Users
+        if err := json.NewDecoder(r.Body).Decode(&amp;bReq); err != nil </span><span class="cov8" title="1">{
+                helper.HandleResponse(w, h.render, http.StatusBadRequest, err, nil)
+                return
+        }</span>
+
+        <span class="cov8" title="1">if err := h.dto.UpdateProfile(usrId, bReq); err != nil </span><span class="cov8" title="1">{
+                helper.HandleResponse(w, h.render, http.StatusInternalServerError, err, nil)
+                return
+        }</span>
+
+        <span class="cov8" title="1">helper.HandleResponse(w, h.render, http.StatusCreated, helper.SUCCESS_MESSSAGE, nil)</span>
+}
+
+func (h *Handler) GetUsers(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+        param := r.URL.Query()
+        search := param.Get("search")
+        role := param.Get("role")
+        userIdStr := param.Get("user_id")
+
+        var userId uuid.UUID
+        var userIdPtr uuid.UUID
+
+        if userIdStr != "" </span><span class="cov8" title="1">{
+                var err error
+                userId, err = uuid.Parse(userIdStr)
+                if err != nil </span><span class="cov8" title="1">{
+                        helper.HandleResponse(w, h.render, http.StatusBadRequest, "Invalid user id", nil)
+                        return
+                }</span>
+                <span class="cov8" title="1">userIdPtr = userId</span>
+        }
+
+        <span class="cov8" title="1">page, err := strconv.Atoi(param.Get("page"))
+        if err != nil </span><span class="cov8" title="1">{
+                helper.HandleResponse(w, h.render, http.StatusBadRequest, "page cant not nil", nil)
+                return
+        }</span>
+        <span class="cov8" title="1">limit, err := strconv.Atoi(param.Get("limit"))
+        if err != nil </span><span class="cov8" title="1">{
+                helper.HandleResponse(w, h.render, http.StatusBadRequest, "limit cant not nil", nil)
+                return
+        }</span>
+
+        <span class="cov8" title="1">bResp, err := h.dto.Get(users.RequestUsers{
+                Search: search,
+                Role:   role,
+                UserId: userIdPtr,
+                Page:   page,
+                Limit:  limit,
+        })
+        if err != nil </span><span class="cov8" title="1">{
+                helper.HandleResponse(w, h.render, http.StatusInternalServerError, err, nil)
+                return
+        }</span>
+
+        <span class="cov8" title="1">helper.HandleResponse(w, h.render, http.StatusOK, helper.SUCCESS_MESSSAGE, bResp)</span>
+}
+
+func (h *Handler) SignUpByEmail(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+        var bReq users.Users
+        if err := json.NewDecoder(r.Body).Decode(&amp;bReq); err != nil </span><span class="cov8" title="1">{
+                helper.HandleResponse(w, h.render, http.StatusConflict, err.Error(), nil)
+                return
+        }</span>
+
+        <span class="cov8" title="1">bResp, err := h.dto.Register(bReq)
+        if err != nil </span><span class="cov8" title="1">{
+                helper.HandleResponse(w, h.render, http.StatusInternalServerError, err.Error(), nil)
+                return
+        }</span>
+
+        <span class="cov8" title="1">helper.HandleResponse(w, h.render, http.StatusOK, helper.SUCCESS_MESSSAGE, bResp)</span>
+}
+
+func (h *Handler) SignInByEmail(w http.ResponseWriter, r *http.Request) <span class="cov8" title="1">{
+        var bReq users.Users
+        if err := json.NewDecoder(r.Body).Decode(&amp;bReq); err != nil </span><span class="cov8" title="1">{
+                helper.HandleResponse(w, h.render, http.StatusConflict, err.Error(), nil)
+                return
+        }</span>
+
+        <span class="cov8" title="1">bResp, err := h.dto.Login(bReq)
+        if err != nil </span><span class="cov8" title="1">{
+                helper.HandleResponse(w, h.render, http.StatusInternalServerError, err.Error(), nil)
+                return
+        }</span>
+
+        <span class="cov8" title="1">helper.HandleResponse(w, h.render, http.StatusOK, helper.SUCCESS_MESSSAGE, bResp)</span>
+}
+</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>
