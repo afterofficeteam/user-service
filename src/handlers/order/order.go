@@ -3,6 +3,7 @@ package order
 import (
 	"encoding/base64"
 	"encoding/json"
+	"log"
 	"net/http"
 	"strings"
 	"sync"
@@ -342,6 +343,8 @@ func (h *Handler) SellerUpdateStatus(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	role := middleware.GetRole(ctx)
 	usrID := middleware.GetUserID(ctx)
+	log.Println("ROLE: ", role)
+	log.Println("USER ID: ", usrID)
 	uid, err := uuid.Parse(usrID)
 	if err != nil {
 		helper.HandleResponse(w, h.render, http.StatusBadRequest, "Error parse uuid", nil)

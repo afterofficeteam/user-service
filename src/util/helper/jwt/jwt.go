@@ -71,9 +71,20 @@ func VerifyToken(tokenString string) (*Payload, error) {
 		return nil, fmt.Errorf("user id claim is not a string")
 	}
 
+	roleInterface, ok := claims["Role"]
+	if !ok {
+		return nil, fmt.Errorf("role claim not found in token")
+	}
+
+	role, ok := roleInterface.(string)
+	if !ok {
+		return nil, fmt.Errorf("role claim is not a string")
+	}
+
 	payload := &Payload{
 		Email:  email,
 		UserID: userId,
+		Role:   role,
 	}
 
 	return payload, nil
